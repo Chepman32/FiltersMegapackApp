@@ -1,15 +1,17 @@
-import { startTransition, useDeferredValue, useMemo, useState } from 'react';
+import { startTransition, useDeferredValue, useMemo, useRef, useState } from 'react';
 import {
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 import { useTranslation } from 'react-i18next';
 import { FILTERS_BY_CATEGORY, getFilterById } from '../filters/filterCatalog';
+import type { FilterStack } from '../types/filter';
 import { useStudioStore } from '../store/useStudioStore';
 import { palette } from '../theme/colors';
 import { FilterCategoryBar } from '../components/FilterCategoryBar';
@@ -23,13 +25,18 @@ import { MediaPipeline } from '../native/MediaPipeline';
 import { mapPickerAsset } from '../utils/media';
 
 export function EditorScreen() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const { height } = useWindowDimensions();
   const {
     currentAsset,
     previewUri,
     filterStack,
     selectedCategoryId,
+    canRedo,
+    canUndo,
     favorites,
+    commitFilterHistory,
+    redoFilterChange,
     setCategory,
     setFilter,
     setIntensity,
@@ -37,11 +44,14 @@ export function EditorScreen() {
     setCurrentAsset,
     setPreviewUri,
     toggleFavorite,
+    undoFilterChange,
     createOrUpdateProject,
   } = useStudioStore();
 
   const [statusLabel, setStatusLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const intensityStartRef = useRef<FilterStack | null>(null);
+  const microStartRef = useRef<FilterStack | null>(null);
 
   useRenderPreview({
     asset: currentAsset,
@@ -60,6 +70,23 @@ export function EditorScreen() {
   );
   const deferredFilters = useDeferredValue(filtersForCategory);
   const activeFilter = getFilterById(filterStack.filterId);
+  const previewHeight = Math.min(380, Math.max(290, height * 0.4));
+  const undoLabel = t('common.undo', {
+    defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
+  });
+  const redoLabel = t('common.redo', {
+    defaultValue: i18n.language.startsWith('ru') ? 'Повторить' : 'Redo',
+  });
+  const shareLabel = t('common.share', {
+    defaultValue: i18n.language.startsWith('ru') ? 'Поделиться' : 'Share',
+  });
+
+  const snapshotFilterStack = (stack: FilterStack): FilterStack => ({
+    ...stack,
+    parameterValues: {
+      ...stack.parameterValues,
+    },
+  });
 
   const handleImport = async () => {
     const response = await launchImageLibrary({
@@ -73,7 +100,7 @@ export function EditorScreen() {
     }
   };
 
-  const handleExport = async () => {
+  const handleShare = async () => {
     if (!currentAsset) {
       return;
     }
@@ -101,11 +128,59 @@ export function EditorScreen() {
 
   return (
     <ScreenView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <View style={styles.historyGroup}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={undoLabel}
+              disabled={!canUndo || busy}
+              onPress={undoFilterChange}
+              style={[
+                styles.headerButton,
+                !canUndo || busy ? styles.headerButtonDisabled : undefined,
+              ]}
+            >
+              <Text style={styles.headerButtonLabel}>{undoLabel}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={redoLabel}
+              disabled={!canRedo || busy}
+              onPress={redoFilterChange}
+              style={[
+                styles.headerButton,
+                !canRedo || busy ? styles.headerButtonDisabled : undefined,
+              ]}
+            >
+              <Text style={styles.headerButtonLabel}>{redoLabel}</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={shareLabel}
+            disabled={!currentAsset || busy}
+            onPress={handleShare}
+            style={[
+              styles.shareButton,
+              !currentAsset || busy ? styles.headerButtonDisabled : undefined,
+            ]}
+          >
+            <Text style={styles.shareButtonLabel}>
+              {busy ? t('common.loading') : shareLabel}
+            </Text>
+          </Pressable>
+        </View>
         <MediaPreview
           asset={currentAsset}
           previewUri={previewUri}
           originalUri={currentAsset?.uri ?? null}
+          style={[
+            styles.preview,
+            {
+              height: previewHeight,
+            },
+          ]}
         />
         {!currentAsset ? (
           <PrimaryButton
@@ -127,7 +202,17 @@ export function EditorScreen() {
           minimumTrackTintColor={palette.accent}
           maximumTrackTintColor={palette.border}
           thumbTintColor={palette.accent}
-          onValueChange={setIntensity}
+          onSlidingStart={() => {
+            intensityStartRef.current = snapshotFilterStack(filterStack);
+          }}
+          onSlidingComplete={value => {
+            setIntensity(value, { trackHistory: false });
+            if (intensityStartRef.current) {
+              commitFilterHistory(intensityStartRef.current);
+              intensityStartRef.current = null;
+            }
+          }}
+          onValueChange={value => setIntensity(value, { trackHistory: false })}
           style={styles.slider}
         />
         <Slider
@@ -138,7 +223,17 @@ export function EditorScreen() {
           minimumTrackTintColor={palette.accentAlt}
           maximumTrackTintColor={palette.border}
           thumbTintColor={palette.accentAlt}
-          onValueChange={value => setParameter('micro', value)}
+          onSlidingStart={() => {
+            microStartRef.current = snapshotFilterStack(filterStack);
+          }}
+          onSlidingComplete={value => {
+            setParameter('micro', value, { trackHistory: false });
+            if (microStartRef.current) {
+              commitFilterHistory(microStartRef.current);
+              microStartRef.current = null;
+            }
+          }}
+          onValueChange={value => setParameter('micro', value, { trackHistory: false })}
           style={styles.slider}
         />
 
@@ -158,13 +253,7 @@ export function EditorScreen() {
             onToggleFavorite={toggleFavorite}
           />
         </View>
-      </ScrollView>
-      <PrimaryButton
-        disabled={!currentAsset || busy}
-        label={busy ? t('common.loading') : t('common.export')}
-        onPress={handleExport}
-        style={styles.exportButton}
-      />
+      </View>
     </ScreenView>
   );
 }
@@ -174,12 +263,59 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.bg,
   },
+  content: {
+    flex: 1,
+    paddingBottom: 8,
+  },
+  header: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  historyGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.panel,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  headerButtonDisabled: {
+    opacity: 0.45,
+  },
+  headerButtonLabel: {
+    color: palette.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  shareButton: {
+    borderRadius: 12,
+    backgroundColor: palette.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  shareButtonLabel: {
+    color: '#041019',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  preview: {
+    marginTop: 4,
+  },
   importButton: {
     marginHorizontal: 16,
     marginTop: 12,
   },
   intensityPanel: {
-    marginTop: 14,
+    marginTop: 10,
     marginHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -188,19 +324,19 @@ const styles = StyleSheet.create({
   intensityTitle: {
     color: palette.textPrimary,
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 15,
   },
   intensityValue: {
     color: palette.accent,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
   slider: {
     marginHorizontal: 16,
-    marginTop: 4,
+    marginTop: 1,
   },
   countRow: {
-    marginTop: 8,
+    marginTop: 4,
     marginHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -208,20 +344,16 @@ const styles = StyleSheet.create({
   },
   countText: {
     color: palette.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   statusText: {
     color: palette.success,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   gridContainer: {
-    minHeight: 420,
-  },
-  exportButton: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    marginTop: 6,
+    height: 178,
+    marginTop: 2,
   },
 });

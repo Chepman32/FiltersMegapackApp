@@ -63,11 +63,11 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     backgroundColor: palette.panel,
   },
   pillSelected: {
@@ -80,11 +80,10 @@ const styles = StyleSheet.create({
   },
   label: {
     color: palette.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   labelSelected: {
     color: palette.textPrimary,
   },
 });
-

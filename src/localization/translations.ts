@@ -9,6 +9,8 @@ export const translations = {
       importMedia: 'Import Media',
       export: 'Export',
       share: 'Share',
+      undo: 'Undo',
+      redo: 'Redo',
       cancel: 'Cancel',
       save: 'Save',
       done: 'Done',
@@ -92,6 +94,8 @@ export const translations = {
       importMedia: 'Импорт медиа',
       export: 'Экспорт',
       share: 'Поделиться',
+      undo: 'Отменить',
+      redo: 'Повторить',
       cancel: 'Отмена',
       save: 'Сохранить',
       done: 'Готово',
@@ -166,4 +170,3 @@ export const translations = {
     },
   },
 } as const;
-

@@ -6,6 +6,8 @@ import {
   Text,
   View,
   type ImageSourcePropType,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { MediaAssetRef } from '../types/media';
@@ -15,12 +17,14 @@ interface MediaPreviewProps {
   asset: MediaAssetRef | null;
   previewUri: string | null;
   originalUri: string | null;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function MediaPreview({
   asset,
   previewUri,
   originalUri,
+  style,
 }: MediaPreviewProps) {
   const { t } = useTranslation();
   const [showOriginal, setShowOriginal] = useState(false);
@@ -52,7 +56,7 @@ export function MediaPreview({
       accessibilityLabel={t('editor.compare')}
       onPressIn={() => setShowOriginal(true)}
       onPressOut={() => setShowOriginal(false)}
-      style={styles.wrapper}
+      style={[styles.wrapper, style]}
     >
       <Image resizeMode="cover" source={imageSource} style={styles.image} />
       <View style={styles.overlayTop}>
@@ -129,4 +133,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-
