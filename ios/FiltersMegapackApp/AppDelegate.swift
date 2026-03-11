@@ -382,98 +382,84 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
 
   private func applyPaletteKnife(image: CIImage, amount: CGFloat, focus: CGFloat) -> CIImage {
     let strength = max(0, min(amount, 1.4))
-    let subjectFocus = max(0.35, min(focus, 1.15))
     let extent = image.extent
-    let center = CIVector(x: extent.midX, y: extent.midY)
 
+    // Step 1: Gentle color boost (preserve natural tones)
     let boosted = image
       .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 1.14 + strength * 0.42,
-        kCIInputContrastKey: 1.1 + strength * 0.28,
-        kCIInputBrightnessKey: 0.01
+        kCIInputSaturationKey: 1.04 + strength * 0.10,
+        kCIInputContrastKey: 1.02 + strength * 0.05,
+        kCIInputBrightnessKey: 0.0
       ])
       .applyingFilter("CIVibrance", parameters: [
-        "inputAmount": 0.22 + strength * 0.34
-      ])
-      .applyingFilter("CIHighlightShadowAdjust", parameters: [
-        "inputHighlightAmount": -0.2 - strength * 0.16,
-        "inputShadowAmount": 0.2 + strength * 0.22
+        "inputAmount": 0.05 + strength * 0.10
       ])
 
-    let posterized = boosted.applyingFilter("CIColorPosterize", parameters: [
-      "inputLevels": max(6, 18 - strength * 6)
-    ])
-    let broadStrokes = posterized.applyingFilter("CICrystallize", parameters: [
-      kCIInputCenterKey: center,
-      "inputRadius": 8 + strength * 16
-    ])
-    let knifeSweep = broadStrokes
-      .applyingFilter("CIMotionBlur", parameters: [
-        "inputRadius": 4 + strength * 10,
-        "inputAngle": 0.72
+    // Step 2: Flatten into paint-like patches (heavy blur + subtle posterize)
+    let patches = boosted
+      .applyingFilter("CIGaussianBlur", parameters: [
+        kCIInputRadiusKey: 5.0 + strength * 8.0
+      ])
+      .cropped(to: extent)
+      .applyingFilter("CIColorPosterize", parameters: [
+        "inputLevels": max(14.0, 28.0 - strength * 9.0)
+      ])
+      .applyingFilter("CIGaussianBlur", parameters: [
+        kCIInputRadiusKey: 1.5 + strength * 1.0
       ])
       .cropped(to: extent)
 
-    var paintedBackground = knifeSweep.applyingFilter("CIOverlayBlendMode", parameters: [
-      kCIInputBackgroundImageKey: broadStrokes
-    ])
-    let sculptedMidtones = boosted
-      .applyingFilter("CICrystallize", parameters: [
-        kCIInputCenterKey: center,
-        "inputRadius": 3 + strength * 8
+    // Step 3: Directional knife strokes (two crossing directions)
+    let blurRadius = 3.0 + strength * 7.0
+    let primaryStroke = patches
+      .applyingFilter("CIMotionBlur", parameters: [
+        "inputRadius": blurRadius,
+        "inputAngle": 0.3
       ])
-      .applyingFilter("CISoftLightBlendMode", parameters: [
-        kCIInputBackgroundImageKey: paintedBackground
+      .cropped(to: extent)
+    let secondaryStroke = patches
+      .applyingFilter("CIMotionBlur", parameters: [
+        "inputRadius": blurRadius * 0.6,
+        "inputAngle": -0.45
       ])
-    paintedBackground = sculptedMidtones
+      .cropped(to: extent)
 
+    // Blend two stroke directions (dissolve = linear, no contrast boost)
+    var painted = primaryStroke.applyingFilter("CIDissolveTransition", parameters: [
+      kCIInputTargetImageKey: secondaryStroke,
+      "inputTime": 0.35
+    ])
+
+    // Step 4: Blend back with original to preserve natural color/detail
+    painted = painted.applyingFilter("CIDissolveTransition", parameters: [
+      kCIInputTargetImageKey: boosted,
+      "inputTime": 0.22
+    ])
+
+    // Step 5: Very subtle paint ridge highlights
     let ridgeMap = boosted
       .applyingFilter("CIEdges", parameters: [
-        "inputIntensity": 3 + strength * 8
+        "inputIntensity": 1.2 + strength * 2.0
       ])
       .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.55,
-        kCIInputBrightnessKey: 0.12
+        kCIInputSaturationKey: 0.0,
+        kCIInputContrastKey: 1.3,
+        kCIInputBrightnessKey: -0.15
       ])
-    paintedBackground = ridgeMap.applyingFilter("CISoftLightBlendMode", parameters: [
-      kCIInputBackgroundImageKey: paintedBackground
+    painted = ridgeMap.applyingFilter("CISoftLightBlendMode", parameters: [
+      kCIInputBackgroundImageKey: painted
     ])
 
-    let canvas = makeCanvasTexture(extent: extent, amount: strength)
-    paintedBackground = canvas.applyingFilter("CISoftLightBlendMode", parameters: [
-      kCIInputBackgroundImageKey: paintedBackground
-    ])
-    paintedBackground = paintedBackground.applyingFilter("CIVignette", parameters: [
-      "inputIntensity": 0.16 + strength * 0.2,
-      "inputRadius": 2.0
+    // Step 6: Impasto surface texture (directional drag marks)
+    let impasto = makeImpastoTexture(extent: extent, amount: strength)
+    painted = impasto.applyingFilter("CISoftLightBlendMode", parameters: [
+      kCIInputBackgroundImageKey: painted
     ])
 
-    let subject = boosted
-      .applyingFilter("CIUnsharpMask", parameters: [
-        "inputRadius": 1.2 + strength * 1.8,
-        "inputIntensity": 1.0 + subjectFocus * 1.4
-      ])
-      .applyingFilter("CICrystallize", parameters: [
-        kCIInputCenterKey: center,
-        "inputRadius": 1.2 + strength * 2.2
-      ])
-
-    let focusMask = makeFocusMask(extent: extent, focus: subjectFocus)
-    let dissolvedBackground = paintedBackground
-      .applyingFilter("CIGaussianBlur", parameters: [
-        kCIInputRadiusKey: 1.2 + strength * 2.8
-      ])
-      .cropped(to: extent)
-
-    let composited = subject.applyingFilter("CIBlendWithMask", parameters: [
-      kCIInputMaskImageKey: focusMask,
-      kCIInputBackgroundImageKey: dissolvedBackground
-    ])
-
-    return composited.applyingFilter("CIUnsharpMask", parameters: [
-      "inputRadius": 0.8,
-      "inputIntensity": 0.32 + strength * 0.35
+    // Step 7: Gentle sharpening
+    return painted.applyingFilter("CIUnsharpMask", parameters: [
+      "inputRadius": 0.8 + strength * 1.2,
+      "inputIntensity": 0.25 + strength * 0.20
     ])
   }
 
@@ -494,34 +480,36 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
       ?? CIImage(color: CIColor(red: 1, green: 1, blue: 1, alpha: 1)).cropped(to: extent)
   }
 
-  private func makeCanvasTexture(extent: CGRect, amount: CGFloat) -> CIImage {
+  private func makeImpastoTexture(extent: CGRect, amount: CGFloat) -> CIImage {
     let clear = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: extent)
-    guard let noiseA = CIFilter(name: "CIRandomGenerator")?.outputImage?.cropped(to: extent),
-          let noiseB = CIFilter(name: "CIRandomGenerator")?.outputImage?.cropped(to: extent) else {
+    guard let noiseA = CIFilter(name: "CIRandomGenerator")?.outputImage,
+          let noiseB = CIFilter(name: "CIRandomGenerator")?.outputImage else {
       return clear
     }
 
-    let verticalFibers = noiseA
-      .transformed(by: CGAffineTransform(scaleX: 0.35, y: 3.6))
+    // Vertical drag marks: compress X, stretch Y → long vertical streaks
+    let dragA = noiseA
+      .transformed(by: CGAffineTransform(scaleX: 0.12, y: 2.5))
       .cropped(to: extent)
-    let horizontalFibers = noiseB
-      .transformed(by: CGAffineTransform(scaleX: 3.2, y: 0.28))
+    // Horizontal drag marks: stretch X, compress Y → long horizontal streaks
+    let dragB = noiseB
+      .transformed(by: CGAffineTransform(scaleX: 2.5, y: 0.12))
       .cropped(to: extent)
 
-    return verticalFibers
+    return dragA
       .applyingFilter("CIScreenBlendMode", parameters: [
-        kCIInputBackgroundImageKey: horizontalFibers
+        kCIInputBackgroundImageKey: dragB
       ])
       .applyingFilter("CIColorControls", parameters: [
         kCIInputSaturationKey: 0,
-        kCIInputBrightnessKey: 0.05,
-        kCIInputContrastKey: 1.35 + amount * 0.45
+        kCIInputBrightnessKey: -0.05,
+        kCIInputContrastKey: 1.55 + amount * 0.35
       ])
       .applyingFilter("CIColorMatrix", parameters: [
-        "inputRVector": CIVector(x: 0.13, y: 0, z: 0, w: 0),
-        "inputGVector": CIVector(x: 0, y: 0.11, z: 0, w: 0),
-        "inputBVector": CIVector(x: 0, y: 0, z: 0.08, w: 0),
-        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.16 + amount * 0.12)
+        "inputRVector": CIVector(x: 0.12, y: 0, z: 0, w: 0),
+        "inputGVector": CIVector(x: 0, y: 0.10, z: 0, w: 0),
+        "inputBVector": CIVector(x: 0, y: 0, z: 0.09, w: 0),
+        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.15 + amount * 0.10)
       ])
   }
 
@@ -530,120 +518,191 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
     let lineDetail = max(0.4, min(detail, 1.2))
     let extent = image.extent
     let center = CIVector(x: extent.midX, y: extent.midY)
+    let shortSide = min(extent.width, extent.height)
+    let scale = shortSide / 1000.0
 
-    let monochrome = image
-      .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.08 + strength * 0.4,
-        kCIInputBrightnessKey: 0.03
+    // Step 1: Grayscale (neutral, no contrast boost yet)
+    let gray = image.applyingFilter("CIColorControls", parameters: [
+      kCIInputSaturationKey: 0,
+      kCIInputContrastKey: 1.0,
+      kCIInputBrightnessKey: 0.0
+    ])
+
+    // Multi-scale dodge-blur for resolution-independent pencil strokes
+    let inverted = gray.applyingFilter("CIColorInvert")
+
+    let fineBlur = inverted
+      .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 4.0 * scale])
+      .cropped(to: extent)
+    let fineDodge = fineBlur.applyingFilter("CIColorDodgeBlendMode", parameters: [
+      kCIInputBackgroundImageKey: gray
+    ])
+
+    let medBlur = inverted
+      .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 14.0 * scale])
+      .cropped(to: extent)
+    let medDodge = medBlur.applyingFilter("CIColorDodgeBlendMode", parameters: [
+      kCIInputBackgroundImageKey: gray
+    ])
+
+    let coarseBlur = inverted
+      .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 30.0 * scale])
+      .cropped(to: extent)
+    let coarseDodge = coarseBlur.applyingFilter("CIColorDodgeBlendMode", parameters: [
+      kCIInputBackgroundImageKey: gray
+    ])
+
+    // Blend 40% fine + 35% medium + 25% coarse
+    let fineWeighted = fineDodge.applyingFilter("CIColorMatrix", parameters: [
+      "inputRVector": CIVector(x: 0.40, y: 0, z: 0, w: 0),
+      "inputGVector": CIVector(x: 0, y: 0.40, z: 0, w: 0),
+      "inputBVector": CIVector(x: 0, y: 0, z: 0.40, w: 0),
+      "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+      "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
+    ])
+    let medWeighted = medDodge.applyingFilter("CIColorMatrix", parameters: [
+      "inputRVector": CIVector(x: 0.35, y: 0, z: 0, w: 0),
+      "inputGVector": CIVector(x: 0, y: 0.35, z: 0, w: 0),
+      "inputBVector": CIVector(x: 0, y: 0, z: 0.35, w: 0),
+      "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+      "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
+    ])
+    let coarseWeighted = coarseDodge.applyingFilter("CIColorMatrix", parameters: [
+      "inputRVector": CIVector(x: 0.25, y: 0, z: 0, w: 0),
+      "inputGVector": CIVector(x: 0, y: 0.25, z: 0, w: 0),
+      "inputBVector": CIVector(x: 0, y: 0, z: 0.25, w: 0),
+      "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+      "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
+    ])
+
+    let blend1 = fineWeighted.applyingFilter("CIAdditionCompositing", parameters: [
+      kCIInputBackgroundImageKey: medWeighted
+    ])
+    var sketch = blend1.applyingFilter("CIAdditionCompositing", parameters: [
+      kCIInputBackgroundImageKey: coarseWeighted
+    ])
+
+    // Step 2: Aggressive tone mapping — push light tones to white
+    sketch = sketch.applyingFilter("CIToneCurve", parameters: [
+      "inputPoint0": CIVector(x: 0, y: 0),
+      "inputPoint1": CIVector(x: 0.15, y: 0.04),
+      "inputPoint2": CIVector(x: 0.35, y: 0.45),
+      "inputPoint3": CIVector(x: 0.55, y: 0.88),
+      "inputPoint4": CIVector(x: 1, y: 1)
+    ])
+
+    // Step 3: Dual-scale edge detection
+    // Fine edges: thin detail lines
+    let fineEdges = gray
+      .applyingFilter("CIEdges", parameters: [
+        "inputIntensity": 3.0 + lineDetail * 6.0
       ])
 
-    let dodgeBase = monochrome
-      .applyingFilter("CIColorInvert")
-      .applyingFilter("CIGaussianBlur", parameters: [
-        kCIInputRadiusKey: 7 + strength * 12
+    // Bold edges: thick contour lines via pre-blur + edges + morphology
+    let preBlurred = gray
+      .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 2.0 * scale])
+      .cropped(to: extent)
+    let boldEdgesRaw = preBlurred
+      .applyingFilter("CIEdges", parameters: [
+        "inputIntensity": 2.0 + lineDetail * 4.0
+      ])
+      .applyingFilter("CIMorphologyMaximum", parameters: [
+        kCIInputRadiusKey: 1.5 * scale
       ])
       .cropped(to: extent)
 
-    var sketch = dodgeBase.applyingFilter("CIColorDodgeBlendMode", parameters: [
-      kCIInputBackgroundImageKey: monochrome
-    ])
-    sketch = sketch.applyingFilter("CIColorControls", parameters: [
-      kCIInputSaturationKey: 0,
-      kCIInputContrastKey: 1.3 + strength * 0.22,
-      kCIInputBrightnessKey: 0.08
-    ])
-
-    let linework = monochrome
-      .applyingFilter("CIEdges", parameters: [
-        "inputIntensity": 2.2 + lineDetail * 5.8
+    // Combine edges, clamp, invert to get dark lines on white
+    let combinedEdges = fineEdges
+      .applyingFilter("CIAdditionCompositing", parameters: [
+        kCIInputBackgroundImageKey: boldEdgesRaw
+      ])
+      .applyingFilter("CIColorClamp", parameters: [
+        "inputMinComponents": CIVector(x: 0, y: 0, z: 0, w: 0),
+        "inputMaxComponents": CIVector(x: 1, y: 1, z: 1, w: 1)
       ])
       .applyingFilter("CIColorInvert")
-      .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.95,
-        kCIInputBrightnessKey: 0.08
-      ])
 
-    let fineStructure = monochrome
-      .applyingFilter("CIUnsharpMask", parameters: [
-        "inputRadius": 1.0 + lineDetail,
-        "inputIntensity": 1.0 + lineDetail * 1.35
-      ])
-      .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.28 + strength * 0.24
-      ])
-
-    sketch = linework.applyingFilter("CIMultiplyBlendMode", parameters: [
-      kCIInputBackgroundImageKey: sketch
+    // Apply tone curve to edges for cleaner look
+    let edgesClean = combinedEdges.applyingFilter("CIToneCurve", parameters: [
+      "inputPoint0": CIVector(x: 0, y: 0),
+      "inputPoint1": CIVector(x: 0.25, y: 0.1),
+      "inputPoint2": CIVector(x: 0.5, y: 0.6),
+      "inputPoint3": CIVector(x: 0.75, y: 0.92),
+      "inputPoint4": CIVector(x: 1, y: 1)
     ])
-    sketch = fineStructure.applyingFilter("CIMultiplyBlendMode", parameters: [
+
+    // Multiply edges onto sketch
+    sketch = edgesClean.applyingFilter("CIMultiplyBlendMode", parameters: [
       kCIInputBackgroundImageKey: sketch
     ])
 
-    let hatch = makeCrossHatchTexture(extent: extent, amount: strength, center: center)
+    // Step 4: Darkness-masked cross-hatching
+    // Create darkness mask from inverted grayscale
+    let darknessMask = gray
+      .applyingFilter("CIColorInvert")
+      .applyingFilter("CIToneCurve", parameters: [
+        "inputPoint0": CIVector(x: 0, y: 0),
+        "inputPoint1": CIVector(x: 0.25, y: 0),
+        "inputPoint2": CIVector(x: 0.45, y: 0.15),
+        "inputPoint3": CIVector(x: 0.7, y: 0.7),
+        "inputPoint4": CIVector(x: 1, y: 1)
+      ])
+      .applyingFilter("CIColorControls", parameters: [
+        kCIInputSaturationKey: 0
+      ])
+
+    let hatch = makeCrossHatchTexture(extent: extent, amount: strength, center: center, darknessMask: darknessMask)
     sketch = hatch.applyingFilter("CIMultiplyBlendMode", parameters: [
       kCIInputBackgroundImageKey: sketch
     ])
 
+    // Step 5: Subtle paper texture
     let paper = makePaperTexture(extent: extent, amount: strength)
     sketch = sketch.applyingFilter("CIMultiplyBlendMode", parameters: [
       kCIInputBackgroundImageKey: paper
     ])
 
-    return sketch.applyingFilter("CIColorControls", parameters: [
-      kCIInputSaturationKey: 0,
-      kCIInputContrastKey: 1.14 + strength * 0.1,
-      kCIInputBrightnessKey: 0.04
-    ])
+    // Step 6: Final tone curve for punch (clean whites + rich darks)
+    return sketch
+      .applyingFilter("CIToneCurve", parameters: [
+        "inputPoint0": CIVector(x: 0, y: 0),
+        "inputPoint1": CIVector(x: 0.2, y: 0.05),
+        "inputPoint2": CIVector(x: 0.5, y: 0.55),
+        "inputPoint3": CIVector(x: 0.8, y: 0.95),
+        "inputPoint4": CIVector(x: 1, y: 1)
+      ])
+      .applyingFilter("CIColorControls", parameters: [
+        kCIInputSaturationKey: 0
+      ])
   }
 
   private func makePaperTexture(extent: CGRect, amount: CGFloat) -> CIImage {
-    let basePaper = CIImage(color: CIColor(red: 0.97, green: 0.97, blue: 0.96, alpha: 1)).cropped(to: extent)
-    guard let noise = CIFilter(name: "CIRandomGenerator")?.outputImage?.cropped(to: extent),
-          let fibers = CIFilter(name: "CIRandomGenerator")?.outputImage?.cropped(to: extent) else {
+    // Warm white base
+    let basePaper = CIImage(color: CIColor(red: 0.98, green: 0.97, blue: 0.95, alpha: 1)).cropped(to: extent)
+    guard let noise = CIFilter(name: "CIRandomGenerator")?.outputImage?.cropped(to: extent) else {
       return basePaper
     }
 
+    // Very subtle grain only — no fiber texture
     let grain = noise
       .applyingFilter("CIColorControls", parameters: [
         kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.1 + amount * 0.5,
-        kCIInputBrightnessKey: 0.18
+        kCIInputContrastKey: 0.8 + amount * 0.3,
+        kCIInputBrightnessKey: 0.2
       ])
       .applyingFilter("CIColorMatrix", parameters: [
-        "inputRVector": CIVector(x: 0.06, y: 0, z: 0, w: 0),
-        "inputGVector": CIVector(x: 0, y: 0.06, z: 0, w: 0),
-        "inputBVector": CIVector(x: 0, y: 0, z: 0.06, w: 0),
-        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.12 + amount * 0.08)
+        "inputRVector": CIVector(x: 0.04, y: 0, z: 0, w: 0),
+        "inputGVector": CIVector(x: 0, y: 0.04, z: 0, w: 0),
+        "inputBVector": CIVector(x: 0, y: 0, z: 0.04, w: 0),
+        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.06 + amount * 0.04)
       ])
 
-    let fiberTexture = fibers
-      .transformed(by: CGAffineTransform(scaleX: 0.45, y: 3.1))
-      .cropped(to: extent)
-      .applyingFilter("CIColorControls", parameters: [
-        kCIInputSaturationKey: 0,
-        kCIInputContrastKey: 1.5,
-        kCIInputBrightnessKey: 0.16
-      ])
-      .applyingFilter("CIColorMatrix", parameters: [
-        "inputRVector": CIVector(x: 0.05, y: 0, z: 0, w: 0),
-        "inputGVector": CIVector(x: 0, y: 0.05, z: 0, w: 0),
-        "inputBVector": CIVector(x: 0, y: 0, z: 0.05, w: 0),
-        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.08 + amount * 0.05)
-      ])
-
-    let paperWithGrain = grain.applyingFilter("CISourceOverCompositing", parameters: [
+    return grain.applyingFilter("CISourceOverCompositing", parameters: [
       kCIInputBackgroundImageKey: basePaper
-    ])
-
-    return fiberTexture.applyingFilter("CISourceOverCompositing", parameters: [
-      kCIInputBackgroundImageKey: paperWithGrain
     ])
   }
 
-  private func makeCrossHatchTexture(extent: CGRect, amount: CGFloat, center: CIVector) -> CIImage {
+  private func makeCrossHatchTexture(extent: CGRect, amount: CGFloat, center: CIVector, darknessMask: CIImage) -> CIImage {
     let transparent = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: extent)
 
     let diagonalA = transparent
@@ -664,7 +723,7 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
       ])
       .cropped(to: extent)
 
-    return diagonalA
+    let rawHatch = diagonalA
       .applyingFilter("CIMultiplyBlendMode", parameters: [
         kCIInputBackgroundImageKey: diagonalB
       ])
@@ -673,12 +732,21 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
         kCIInputContrastKey: 1.7,
         kCIInputBrightnessKey: 0.2
       ])
-      .applyingFilter("CIColorMatrix", parameters: [
-        "inputRVector": CIVector(x: 0.14, y: 0, z: 0, w: 0),
-        "inputGVector": CIVector(x: 0, y: 0.14, z: 0, w: 0),
-        "inputBVector": CIVector(x: 0, y: 0, z: 0.14, w: 0),
-        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.14 + amount * 0.08)
-      ])
+
+    // Apply darkness mask: hatching only in dark/mid areas
+    // Invert hatch (dark lines become light), multiply with mask, invert back
+    let hatchInverted = rawHatch.applyingFilter("CIColorInvert")
+    let masked = hatchInverted.applyingFilter("CIMultiplyBlendMode", parameters: [
+      kCIInputBackgroundImageKey: darknessMask
+    ])
+    let hatchMasked = masked.applyingFilter("CIColorInvert")
+
+    return hatchMasked.applyingFilter("CIColorMatrix", parameters: [
+      "inputRVector": CIVector(x: 0.14, y: 0, z: 0, w: 0),
+      "inputGVector": CIVector(x: 0, y: 0.14, z: 0, w: 0),
+      "inputBVector": CIVector(x: 0, y: 0, z: 0.14, w: 0),
+      "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0.14 + amount * 0.08)
+    ])
   }
 }
 
