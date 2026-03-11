@@ -152,7 +152,6 @@ export function FilterGrid({
       horizontal
       decelerationRate="fast"
       disableIntervalMomentum
-      estimatedItemSize={pageWidth + 12}
       extraData={{ favorites, selectedFilterId }}
       keyExtractor={(item, index) => item[0]?.id ?? `page-${index}`}
       pagingEnabled

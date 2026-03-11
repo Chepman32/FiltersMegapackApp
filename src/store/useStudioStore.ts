@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { FolderDocument, FolderWithProjects } from '../types/folder';
 import type { FilterCategoryId, FilterStack } from '../types/filter';
 import type { MediaAssetRef } from '../types/media';
 import type { ProjectDocument } from '../types/project';
@@ -9,7 +10,17 @@ import {
 } from '../filters/recipe';
 import { getFilterById } from '../filters/filterCatalog';
 import { readJSON, writeJSON } from './storage';
-import { getProject, listProjects, upsertProject } from '../db/projectRepository';
+import {
+  createFolder as insertFolder,
+  getFolder,
+  getProject,
+  listFolders,
+  listProjects,
+  removeFolder as deleteFolder,
+  removeProject as deleteProject,
+  renameFolder as renameFolderRecord,
+  upsertProject,
+} from '../db/projectRepository';
 import { createId } from '../utils/id';
 
 const FAVORITES_KEY = 'favorites';
@@ -17,9 +28,21 @@ const RECENTS_KEY = 'recents';
 const ONBOARDING_KEY = 'onboardingSeen';
 const LANGUAGE_KEY = 'language';
 const PERFORMANCE_KEY = 'performanceMode';
+const AUTOSAVE_DEBOUNCE_MS = 420;
+const UNTITLED_PROJECT_TITLE = 'Untitled Project';
 
 interface FilterChangeOptions {
   trackHistory?: boolean;
+}
+
+interface CurrentAssetOptions {
+  resetProject?: boolean;
+}
+
+interface HomeProjectsState {
+  allProjects: ProjectDocument[];
+  foldersWithProjects: Array<FolderWithProjects<ProjectDocument>>;
+  trashProjects: ProjectDocument[];
 }
 
 interface StudioState {
@@ -37,8 +60,10 @@ interface StudioState {
   language: 'en' | 'ru';
   performanceMode: boolean;
   projects: ProjectDocument[];
+  folders: FolderDocument[];
+  homeProjects: HomeProjectsState;
   activeProjectId: string | null;
-  setCurrentAsset: (asset: MediaAssetRef | null) => void;
+  setCurrentAsset: (asset: MediaAssetRef | null, options?: CurrentAssetOptions) => void;
   setPreviewUri: (uri: string | null) => void;
   setCategory: (categoryId: FilterCategoryId) => void;
   setFilter: (filterId: string, options?: FilterChangeOptions) => void;
@@ -54,8 +79,23 @@ interface StudioState {
   setLanguage: (value: 'en' | 'ru') => void;
   setPerformanceMode: (value: boolean) => void;
   refreshProjects: () => void;
-  createOrUpdateProject: (title?: string) => ProjectDocument;
+  createOrUpdateProject: (title?: string) => ProjectDocument | null;
   openProject: (projectId: string) => ProjectDocument | null;
+  createFolder: (name: string) => FolderDocument | null;
+  renameFolder: (folderId: string, name: string) => FolderDocument | null;
+  removeFolder: (folderId: string) => void;
+  renameProject: (projectId: string, title: string) => ProjectDocument | null;
+  duplicateProject: (projectId: string) => ProjectDocument | null;
+  moveProjectToFolder: (
+    projectId: string,
+    folderId: string | null,
+  ) => ProjectDocument | null;
+  trashProject: (projectId: string) => ProjectDocument | null;
+  recoverProject: (projectId: string) => ProjectDocument | null;
+  removeProjectPermanently: (projectId: string) => void;
+  cleanTrash: () => void;
+  scheduleAutosave: () => void;
+  flushAutosave: () => ProjectDocument | null;
 }
 
 const initialFilterStack = createDefaultFilterStack();
@@ -64,6 +104,13 @@ const initialFavorites = readJSON<string[]>(FAVORITES_KEY, []);
 const initialRecents = readJSON<string[]>(RECENTS_KEY, []);
 const initialLanguage = readJSON<'en' | 'ru'>(LANGUAGE_KEY, 'en');
 const initialPerformance = readJSON<boolean>(PERFORMANCE_KEY, true);
+const EMPTY_HOME_PROJECTS: HomeProjectsState = {
+  allProjects: [],
+  foldersWithProjects: [],
+  trashProjects: [],
+};
+
+let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function cloneFilterStack(stack: FilterStack): FilterStack {
   return {
@@ -94,6 +141,27 @@ function sameFilterStack(left: FilterStack, right: FilterStack) {
   );
 }
 
+function sameAssets(left: MediaAssetRef[], right: MediaAssetRef[]) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameProjectData(left: ProjectDocument, right: ProjectDocument) {
+  return (
+    left.title === right.title &&
+    left.folderId === right.folderId &&
+    left.isTrashed === right.isTrashed &&
+    left.trashedAt === right.trashedAt &&
+    left.restoreFolderId === right.restoreFolderId &&
+    left.coverUri === right.coverUri &&
+    left.activeAssetId === right.activeAssetId &&
+    left.historyCursor === right.historyCursor &&
+    left.collageLayoutId === right.collageLayoutId &&
+    sameAssets(left.assets, right.assets) &&
+    sameFilterStack(left.filterStack, right.filterStack) &&
+    JSON.stringify(left.history) === JSON.stringify(right.history)
+  );
+}
+
 function historyState(past: FilterStack[], future: FilterStack[]) {
   return {
     filterHistoryPast: past,
@@ -116,6 +184,90 @@ function categoryForFilterId(
   return getFilterById(filterId).categoryId;
 }
 
+function normalizeName(name: string): string {
+  return name.trim();
+}
+
+function buildHomeProjects(
+  projects: ProjectDocument[],
+  folders: FolderDocument[],
+): HomeProjectsState {
+  const allProjects = projects.filter(project => !project.isTrashed);
+  const trashProjects = projects.filter(project => project.isTrashed);
+  const foldersWithProjects = folders.map(folder => ({
+    folder,
+    projects: allProjects.filter(project => project.folderId === folder.id),
+  }));
+
+  return {
+    allProjects,
+    foldersWithProjects,
+    trashProjects,
+  };
+}
+
+function loadHomeState() {
+  const projects = listProjects();
+  const folders = listFolders();
+  return {
+    projects,
+    folders,
+    homeProjects: buildHomeProjects(projects, folders),
+  };
+}
+
+function cloneProject(project: ProjectDocument): ProjectDocument {
+  return {
+    ...project,
+    assets: project.assets.map(asset => ({ ...asset })),
+    filterStack: cloneFilterStack(project.filterStack),
+    history: project.history.map(entry => ({
+      ...entry,
+      payload: {
+        ...entry.payload,
+      },
+    })),
+  };
+}
+
+function buildProjectSnapshot(
+  state: StudioState,
+  existing: ProjectDocument | null,
+  title?: string,
+): ProjectDocument | null {
+  if (!state.currentAsset) {
+    return null;
+  }
+  const id = existing?.id ?? state.activeProjectId ?? createId('project');
+  const now = new Date().toISOString();
+
+  return {
+    id,
+    schemaVersion: 2,
+    title: title ?? existing?.title ?? UNTITLED_PROJECT_TITLE,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    folderId: existing?.folderId ?? null,
+    isTrashed: existing?.isTrashed ?? false,
+    trashedAt: existing?.trashedAt ?? null,
+    restoreFolderId: existing?.restoreFolderId ?? null,
+    coverUri: state.previewUri ?? state.currentAsset.uri,
+    assets: [state.currentAsset],
+    activeAssetId: state.currentAsset.id,
+    filterStack: cloneFilterStack(state.filterStack),
+    history: existing?.history ?? [],
+    historyCursor: existing?.historyCursor ?? 0,
+    collageLayoutId: existing?.collageLayoutId,
+  };
+}
+
+function clearAutosaveTimer() {
+  if (autosaveTimeout) {
+    clearTimeout(autosaveTimeout);
+    autosaveTimeout = null;
+  }
+}
+
 export const useStudioStore = create<StudioState>((set, get) => ({
   currentAsset: null,
   previewUri: null,
@@ -131,14 +283,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   language: initialLanguage,
   performanceMode: initialPerformance,
   projects: [],
+  folders: [],
+  homeProjects: EMPTY_HOME_PROJECTS,
   activeProjectId: null,
 
-  setCurrentAsset(asset) {
+  setCurrentAsset(asset, options) {
+    clearAutosaveTimer();
     const neutralStack = createNeutralFilterStack();
     set({
       currentAsset: asset,
       previewUri: asset?.uri ?? null,
       filterStack: neutralStack,
+      activeProjectId: options?.resetProject === false ? get().activeProjectId : null,
       ...historyState([], []),
     });
   },
@@ -331,44 +487,34 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
 
   refreshProjects() {
-    set({ projects: listProjects() });
+    set(loadHomeState());
   },
 
   createOrUpdateProject(title) {
     const state = get();
-    const id = state.activeProjectId ?? createId('project');
-    const now = new Date().toISOString();
-    const existing = id ? getProject(id) : null;
-    const project: ProjectDocument = {
-      id,
-      schemaVersion: 1,
-      title: title ?? existing?.title ?? 'Untitled Project',
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-      coverUri: state.previewUri ?? state.currentAsset?.uri,
-      assets: state.currentAsset ? [state.currentAsset] : [],
-      activeAssetId: state.currentAsset?.id,
-      filterStack: state.filterStack,
-      history: existing?.history ?? [],
-      historyCursor: existing?.historyCursor ?? 0,
-      collageLayoutId: existing?.collageLayoutId,
-    };
+    const existing = state.activeProjectId ? getProject(state.activeProjectId) : null;
+    const project = buildProjectSnapshot(state, existing, title);
+    if (!project) {
+      return null;
+    }
+
     upsertProject(project);
     set({
-      activeProjectId: id,
-      projects: listProjects(),
+      activeProjectId: project.id,
+      ...loadHomeState(),
     });
     return project;
   },
 
   openProject(projectId) {
+    clearAutosaveTimer();
     const project = getProject(projectId);
-    if (!project) {
+    if (!project || project.isTrashed) {
       return null;
     }
     set({
       activeProjectId: project.id,
-      filterStack: project.filterStack,
+      filterStack: cloneFilterStack(project.filterStack),
       selectedCategoryId: categoryForFilterId(
         project.filterStack.filterId,
         get().selectedCategoryId,
@@ -376,6 +522,196 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       currentAsset: project.assets.find(asset => asset.id === project.activeAssetId) ?? null,
       previewUri: project.coverUri ?? project.assets[0]?.uri ?? null,
       ...historyState([], []),
+    });
+    return project;
+  },
+
+  createFolder(name) {
+    const trimmed = normalizeName(name);
+    if (!trimmed) {
+      return null;
+    }
+    const now = new Date().toISOString();
+    const folder: FolderDocument = {
+      id: createId('folder'),
+      name: trimmed,
+      createdAt: now,
+      updatedAt: now,
+    };
+    insertFolder(folder);
+    set(loadHomeState());
+    return folder;
+  },
+
+  renameFolder(folderId, name) {
+    const folder = getFolder(folderId);
+    const trimmed = normalizeName(name);
+    if (!folder || !trimmed) {
+      return null;
+    }
+    const updatedAt = new Date().toISOString();
+    renameFolderRecord(folderId, trimmed, updatedAt);
+    set(loadHomeState());
+    return {
+      ...folder,
+      name: trimmed,
+      updatedAt,
+    };
+  },
+
+  removeFolder(folderId) {
+    const state = get();
+    const now = new Date().toISOString();
+    state.projects
+      .filter(project => project.folderId === folderId && !project.isTrashed)
+      .forEach(project => {
+        upsertProject({
+          ...cloneProject(project),
+          folderId: null,
+          isTrashed: true,
+          trashedAt: now,
+          restoreFolderId: null,
+        });
+      });
+    deleteFolder(folderId);
+    set(loadHomeState());
+  },
+
+  renameProject(projectId, title) {
+    const project = getProject(projectId);
+    const trimmed = normalizeName(title);
+    if (!project || !trimmed) {
+      return null;
+    }
+    const renamed = {
+      ...cloneProject(project),
+      title: trimmed,
+    };
+    upsertProject(renamed);
+    set(loadHomeState());
+    return renamed;
+  },
+
+  duplicateProject(projectId) {
+    const project = getProject(projectId);
+    if (!project || project.isTrashed) {
+      return null;
+    }
+    const now = new Date().toISOString();
+    const duplicated: ProjectDocument = {
+      ...cloneProject(project),
+      id: createId('project'),
+      title: `${project.title} Copy`,
+      createdAt: now,
+      updatedAt: now,
+      restoreFolderId: null,
+      trashedAt: null,
+      isTrashed: false,
+    };
+    upsertProject(duplicated);
+    set(loadHomeState());
+    return duplicated;
+  },
+
+  moveProjectToFolder(projectId, folderId) {
+    const project = getProject(projectId);
+    if (!project || project.isTrashed) {
+      return null;
+    }
+    const moved = {
+      ...cloneProject(project),
+      folderId,
+      restoreFolderId: null,
+    };
+    upsertProject(moved);
+    set(loadHomeState());
+    return moved;
+  },
+
+  trashProject(projectId) {
+    const project = getProject(projectId);
+    if (!project || project.isTrashed) {
+      return null;
+    }
+    const trashed: ProjectDocument = {
+      ...cloneProject(project),
+      folderId: null,
+      isTrashed: true,
+      trashedAt: new Date().toISOString(),
+      restoreFolderId: project.folderId ?? null,
+    };
+    upsertProject(trashed);
+    set(current => ({
+      activeProjectId:
+        current.activeProjectId === projectId ? null : current.activeProjectId,
+      ...loadHomeState(),
+    }));
+    return trashed;
+  },
+
+  recoverProject(projectId) {
+    const project = getProject(projectId);
+    if (!project || !project.isTrashed) {
+      return null;
+    }
+    const targetFolderId =
+      project.restoreFolderId && getFolder(project.restoreFolderId)
+        ? project.restoreFolderId
+        : null;
+    const recovered: ProjectDocument = {
+      ...cloneProject(project),
+      folderId: targetFolderId,
+      isTrashed: false,
+      trashedAt: null,
+      restoreFolderId: null,
+    };
+    upsertProject(recovered);
+    set(loadHomeState());
+    return recovered;
+  },
+
+  removeProjectPermanently(projectId) {
+    deleteProject(projectId);
+    set(current => ({
+      activeProjectId:
+        current.activeProjectId === projectId ? null : current.activeProjectId,
+      ...loadHomeState(),
+    }));
+  },
+
+  cleanTrash() {
+    const state = get();
+    state.projects
+      .filter(project => project.isTrashed)
+      .forEach(project => deleteProject(project.id));
+    set(loadHomeState());
+  },
+
+  scheduleAutosave() {
+    clearAutosaveTimer();
+    autosaveTimeout = setTimeout(() => {
+      get().flushAutosave();
+    }, AUTOSAVE_DEBOUNCE_MS);
+  },
+
+  flushAutosave() {
+    clearAutosaveTimer();
+    const state = get();
+    if (!state.currentAsset) {
+      return null;
+    }
+    const existing = state.activeProjectId ? getProject(state.activeProjectId) : null;
+    const project = buildProjectSnapshot(state, existing);
+    if (!project) {
+      return null;
+    }
+    if (existing && sameProjectData(existing, project)) {
+      return existing;
+    }
+    upsertProject(project);
+    set({
+      activeProjectId: project.id,
+      ...loadHomeState(),
     });
     return project;
   },

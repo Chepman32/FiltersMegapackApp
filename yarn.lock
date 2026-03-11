@@ -2940,6 +2940,7 @@ __metadata:
     react: "npm:19.2.3"
     react-i18next: "npm:^16.5.6"
     react-native: "npm:0.84.1"
+    react-native-document-picker: "npm:^9.3.1"
     react-native-gesture-handler: "npm:^2.30.0"
     react-native-image-picker: "npm:^8.2.1"
     react-native-localize: "npm:^3.7.0"
@@ -7911,6 +7912,22 @@ __metadata:
   version: 19.2.4
   resolution: "react-is@npm:19.2.4"
   checksum: 10c0/477a7cfc900f24194606e315fa353856a3a13487ea8eca841678817cad4daef64339ea0d1e84e58459fc75dbe0d9ba00bb0cc626db3d07e0cf31edc64cb4fa37
+  languageName: node
+  linkType: hard
+
+"react-native-document-picker@npm:^9.3.1":
+  version: 9.3.1
+  resolution: "react-native-document-picker@npm:9.3.1"
+  dependencies:
+    invariant: "npm:^2.2.4"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+    react-native-windows: "*"
+  peerDependenciesMeta:
+    react-native-windows:
+      optional: true
+  checksum: 10c0/62ac1c1567fb4aabd791c03768e51b0898de727e37bb695cca9fc72c31eb3f2d75faf5bc7fb4be86a3e2b96b77cf948558b496412ecf17687ca006eb52ef6dd8
   languageName: node
   linkType: hard
 

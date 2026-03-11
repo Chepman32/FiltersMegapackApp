@@ -60,6 +60,8 @@ export function EditorScreen() {
     setParameter,
     setCurrentAsset,
     setPreviewUri,
+    scheduleAutosave,
+    flushAutosave,
     toggleFavorite,
     undoFilterChange,
     createOrUpdateProject,
@@ -126,6 +128,20 @@ export function EditorScreen() {
     });
   }, [categorySwitchProgress, selectedCategoryId]);
 
+  useEffect(() => {
+    if (!currentAsset) {
+      return;
+    }
+    scheduleAutosave();
+  }, [currentAsset, filterStack, previewUri, scheduleAutosave]);
+
+  useEffect(
+    () => () => {
+      flushAutosave();
+    },
+    [flushAutosave],
+  );
+
   const gridMotionStyle = useAnimatedStyle(() => ({
     opacity: 0.72 + categorySwitchProgress.value * 0.28,
     transform: [
@@ -148,7 +164,7 @@ export function EditorScreen() {
     });
     const asset = mapPickerAsset(response.assets?.[0] ?? null);
     if (asset) {
-      setCurrentAsset(asset);
+      setCurrentAsset(asset, { resetProject: false });
       setStatusLabel(null);
     }
   };
@@ -168,7 +184,9 @@ export function EditorScreen() {
           ? await MediaPipeline.transcodeVideo(rendered.uri, 'high')
           : await MediaPipeline.exportAsset(rendered.uri, currentAsset.kind, 0.95);
       const project = createOrUpdateProject();
-      setStatusLabel(`Saved ${project.title}`);
+      if (project) {
+        setStatusLabel(`Saved ${project.title}`);
+      }
       await Share.open({
         url: exported.uri.startsWith('file://')
           ? exported.uri

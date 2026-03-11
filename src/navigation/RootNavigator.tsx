@@ -5,10 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, StudioTabsParamList } from './types';
 import { TabBarIcon } from '../components/TabBarIcon';
-import { CameraScreen } from '../screens/CameraScreen';
+import { HomeScreen } from '../screens/HomeScreen';
 import { EditorScreen } from '../screens/EditorScreen';
 import { CollageScreen } from '../screens/CollageScreen';
-import { ProjectsScreen } from '../screens/ProjectsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { useStudioStore } from '../store/useStudioStore';
@@ -18,25 +17,21 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<StudioTabsParamList>();
 
 const TAB_ICON_KIND = {
-  CameraTab: 'camera',
+  HomeTab: 'home',
   EditorTab: 'editor',
   CollageTab: 'collage',
-  ProjectsTab: 'projects',
   SettingsTab: 'settings',
 } as const;
 
 const TAB_ICON_RENDERERS = {
-  CameraTab: ({ color, focused }: { color: string; focused: boolean }) => (
-    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.CameraTab} />
+  HomeTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.HomeTab} />
   ),
   EditorTab: ({ color, focused }: { color: string; focused: boolean }) => (
     <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.EditorTab} />
   ),
   CollageTab: ({ color, focused }: { color: string; focused: boolean }) => (
     <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.CollageTab} />
-  ),
-  ProjectsTab: ({ color, focused }: { color: string; focused: boolean }) => (
-    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.ProjectsTab} />
   ),
   SettingsTab: ({ color, focused }: { color: string; focused: boolean }) => (
     <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.SettingsTab} />
@@ -48,10 +43,9 @@ function StudioTabs() {
   const insets = useSafeAreaInsets();
   const labels = useMemo(
     () => ({
-      camera: t('common.camera'),
+      home: t('common.home'),
       editor: t('common.editor'),
       collage: t('common.collage'),
-      projects: t('common.projects'),
       settings: t('common.settings'),
     }),
     [t],
@@ -81,9 +75,9 @@ function StudioTabs() {
       })}
     >
       <Tabs.Screen
-        component={CameraScreen}
-        name="CameraTab"
-        options={{ title: labels.camera }}
+        component={HomeScreen}
+        name="HomeTab"
+        options={{ title: labels.home }}
       />
       <Tabs.Screen
         component={EditorScreen}
@@ -94,11 +88,6 @@ function StudioTabs() {
         component={CollageScreen}
         name="CollageTab"
         options={{ title: labels.collage }}
-      />
-      <Tabs.Screen
-        component={ProjectsScreen}
-        name="ProjectsTab"
-        options={{ title: labels.projects }}
       />
       <Tabs.Screen
         component={SettingsScreen}

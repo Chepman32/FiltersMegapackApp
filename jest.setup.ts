@@ -1,6 +1,23 @@
 import 'react-native-gesture-handler/jestSetup';
 
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+jest.mock('react-native-reanimated', () => {
+  const { Image, ScrollView, Text, View } = require('react-native');
+
+  return {
+    __esModule: true,
+    default: {
+      View,
+      Text,
+      Image,
+      ScrollView,
+      createAnimatedComponent: (Component: unknown) => Component,
+    },
+    interpolateColor: jest.fn((_value, _input, output) => output[0]),
+    useAnimatedStyle: (updater: () => object) => updater(),
+    useSharedValue: (value: unknown) => ({ value }),
+    withSpring: (value: unknown) => value,
+  };
+});
 jest.mock('@shopify/flash-list', () => {
   const React = require('react');
   const { FlatList } = require('react-native');
@@ -55,6 +72,15 @@ jest.mock('react-native-quick-sqlite', () => {
 jest.mock('react-native-image-picker', () => ({
   launchCamera: jest.fn(async () => ({ assets: [] })),
   launchImageLibrary: jest.fn(async () => ({ assets: [] })),
+}));
+
+jest.mock('react-native-document-picker', () => ({
+  isCancel: jest.fn(() => false),
+  pickSingle: jest.fn(async () => null),
+  types: {
+    images: 'public.image',
+    video: 'public.movie',
+  },
 }));
 
 jest.mock('react-native-localize', () => ({

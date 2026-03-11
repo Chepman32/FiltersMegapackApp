@@ -602,7 +602,8 @@ export const FILTER_COUNT = FILTERS.length;
 export const FILTERS_BY_ID = Object.fromEntries(FILTERS.map(filter => [filter.id, filter]));
 export const FILTERS_BY_CATEGORY = FILTER_CATEGORIES.reduce(
   (acc, category) => {
-    acc[category.id] = FILTERS.filter(filter => filter.categoryId === category.id);
+    const categoryId = category.id as StaticFilterCategoryId;
+    acc[categoryId] = FILTERS.filter(filter => filter.categoryId === categoryId);
     return acc;
   },
   {} as Record<StaticFilterCategoryId, FilterDefinition[]>,

@@ -21,6 +21,10 @@ export interface ProjectDocument {
   title: string;
   createdAt: string;
   updatedAt: string;
+  folderId: string | null;
+  isTrashed: boolean;
+  trashedAt?: string | null;
+  restoreFolderId?: string | null;
   coverUri?: string;
   assets: MediaAssetRef[];
   activeAssetId?: string;

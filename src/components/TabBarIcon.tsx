@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-type TabBarIconKind = 'camera' | 'editor' | 'collage' | 'projects' | 'settings';
+type TabBarIconKind = 'home' | 'editor' | 'collage' | 'settings';
 
 interface TabBarIconProps {
   kind: TabBarIconKind;
@@ -11,21 +11,21 @@ interface TabBarIconProps {
 export function TabBarIcon({ kind, color, focused }: TabBarIconProps) {
   return (
     <View style={[styles.frame, focused ? styles.frameFocused : undefined]}>
-      {kind === 'camera' ? <CameraIcon color={color} /> : null}
+      {kind === 'home' ? <HomeIcon color={color} /> : null}
       {kind === 'editor' ? <EditorIcon color={color} /> : null}
       {kind === 'collage' ? <CollageIcon color={color} /> : null}
-      {kind === 'projects' ? <ProjectsIcon color={color} /> : null}
       {kind === 'settings' ? <SettingsIcon color={color} /> : null}
     </View>
   );
 }
 
-function CameraIcon({ color }: { color: string }) {
+function HomeIcon({ color }: { color: string }) {
   return (
     <View style={styles.canvas}>
-      <View style={[styles.cameraBody, { borderColor: color }]} />
-      <View style={[styles.cameraLens, { borderColor: color }]} />
-      <View style={[styles.cameraTop, { backgroundColor: color }]} />
+      <View style={[styles.homeRoofLeft, { backgroundColor: color }]} />
+      <View style={[styles.homeRoofRight, { backgroundColor: color }]} />
+      <View style={[styles.homeBody, { borderColor: color }]} />
+      <View style={[styles.homeDoor, { backgroundColor: color }]} />
     </View>
   );
 }
@@ -50,17 +50,6 @@ function CollageIcon({ color }: { color: string }) {
       <View style={[styles.collageCell, styles.collageCellTopRight, { borderColor: color }]} />
       <View style={[styles.collageCell, styles.collageCellBottomLeft, { borderColor: color }]} />
       <View style={[styles.collageCell, styles.collageCellBottomRight, { borderColor: color }]} />
-    </View>
-  );
-}
-
-function ProjectsIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.canvas}>
-      <View style={[styles.projectBack, { borderColor: color }]} />
-      <View style={[styles.projectFront, { borderColor: color }]} />
-      <View style={[styles.projectLine, styles.projectLineTop, { backgroundColor: color }]} />
-      <View style={[styles.projectLine, styles.projectLineBottom, { backgroundColor: color }]} />
     </View>
   );
 }
@@ -92,31 +81,41 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
   },
-  cameraBody: {
+  homeBody: {
     position: 'absolute',
-    left: 2,
-    right: 2,
-    bottom: 4,
-    height: 13,
-    borderWidth: 1.7,
-    borderRadius: 5,
-  },
-  cameraLens: {
-    position: 'absolute',
-    top: 8,
-    left: 7,
-    width: 8,
-    height: 8,
+    left: 4,
+    right: 4,
+    bottom: 3,
+    height: 12,
     borderWidth: 1.7,
     borderRadius: 4,
   },
-  cameraTop: {
+  homeRoofLeft: {
     position: 'absolute',
     top: 3,
-    left: 5,
-    width: 7,
-    height: 3,
-    borderRadius: 1.5,
+    left: 4,
+    width: 9,
+    height: 2.2,
+    borderRadius: 1.2,
+    transform: [{ rotate: '-38deg' }],
+  },
+  homeRoofRight: {
+    position: 'absolute',
+    top: 3,
+    right: 4,
+    width: 9,
+    height: 2.2,
+    borderRadius: 1.2,
+    transform: [{ rotate: '38deg' }],
+  },
+  homeDoor: {
+    position: 'absolute',
+    bottom: 3,
+    left: 9,
+    width: 4,
+    height: 6,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
   },
   editorTrack: {
     position: 'absolute',
@@ -176,39 +175,6 @@ const styles = StyleSheet.create({
   collageCellBottomRight: {
     bottom: 3,
     right: 3,
-  },
-  projectBack: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    width: 12,
-    height: 13,
-    borderWidth: 1.5,
-    borderRadius: 3,
-    opacity: 0.65,
-  },
-  projectFront: {
-    position: 'absolute',
-    top: 6,
-    left: 7,
-    width: 12,
-    height: 13,
-    borderWidth: 1.7,
-    borderRadius: 3,
-  },
-  projectLine: {
-    position: 'absolute',
-    left: 10,
-    width: 8,
-    height: 1.6,
-    borderRadius: 1,
-  },
-  projectLineTop: {
-    top: 8,
-  },
-  projectLineBottom: {
-    top: 12,
-    width: 10,
   },
   settingsRing: {
     position: 'absolute',

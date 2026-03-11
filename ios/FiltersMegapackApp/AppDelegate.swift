@@ -1118,3 +1118,120 @@ class RNAIEffects: NSObject, RCTBridgeModule {
     return CIColor(red: red, green: green, blue: blue, alpha: 1.0)
   }
 }
+
+@objc(RNContextMenuViewManager)
+class RNContextMenuViewManager: RCTViewManager {
+  override static func requiresMainQueueSetup() -> Bool {
+    true
+  }
+
+  override func view() -> UIView! {
+    RNContextMenuView()
+  }
+}
+
+private final class RNContextMenuView: UIView, UIContextMenuInteractionDelegate {
+  @objc var menuConfig: NSDictionary = [:] {
+    didSet {
+      actionItems = menuConfig["actions"] as? [NSDictionary] ?? []
+    }
+  }
+
+  @objc var onPressMenuItem: RCTBubblingEventBlock?
+
+  private let contentView = UIView()
+  private lazy var interaction = UIContextMenuInteraction(delegate: self)
+  private var actionItems: [NSDictionary] = []
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    contentView.backgroundColor = .clear
+    addSubview(contentView)
+    addInteraction(interaction)
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    contentView.backgroundColor = .clear
+    addSubview(contentView)
+    addInteraction(interaction)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    contentView.frame = bounds
+  }
+
+  override func insertReactSubview(_ subview: UIView!, at atIndex: Int) {
+    contentView.insertSubview(subview, at: atIndex)
+  }
+
+  override func removeReactSubview(_ subview: UIView!) {
+    subview.removeFromSuperview()
+  }
+
+  override func reactSubviews() -> [UIView]! {
+    contentView.subviews
+  }
+
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard !actionItems.isEmpty else {
+      return nil
+    }
+
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      UIMenu(title: "", children: self.makeMenuElements(from: self.actionItems))
+    }
+  }
+
+  private func makeMenuElements(from items: [NSDictionary]) -> [UIMenuElement] {
+    items.compactMap { item in
+      guard let title = item["title"] as? String else {
+        return nil
+      }
+
+      let image = (item["systemIcon"] as? String).flatMap { UIImage(systemName: $0) }
+      let attributes = menuAttributes(from: item)
+
+      if let children = item["children"] as? [NSDictionary], !children.isEmpty {
+        return UIMenu(
+          title: title,
+          image: image,
+          identifier: nil,
+          options: [],
+          children: makeMenuElements(from: children)
+        )
+      }
+
+      guard let actionId = item["id"] as? String else {
+        return nil
+      }
+
+      let action = UIAction(
+        title: title,
+        image: image,
+        identifier: nil,
+        discoverabilityTitle: item["subtitle"] as? String,
+        attributes: attributes,
+        state: .off
+      ) { [weak self] _ in
+        self?.onPressMenuItem?(["actionId": actionId])
+      }
+      return action
+    }
+  }
+
+  private func menuAttributes(from item: NSDictionary) -> UIMenuElement.Attributes {
+    var attributes: UIMenuElement.Attributes = []
+    if (item["destructive"] as? Bool) == true {
+      attributes.insert(.destructive)
+    }
+    if (item["disabled"] as? Bool) == true {
+      attributes.insert(.disabled)
+    }
+    return attributes
+  }
+}
