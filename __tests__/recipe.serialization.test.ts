@@ -9,6 +9,8 @@ describe('recipe serialization', () => {
       createdAt: '2026-03-10T10:00:00.000Z',
       filterStack: {
         filterId: 'cinematic-4',
+        mixEnabled: false,
+        mixFilterIds: ['cinematic-4'],
         intensity: 0.84,
         parameterValues: {
           strength: 0.84,
@@ -21,4 +23,3 @@ describe('recipe serialization', () => {
     expect(parsed).toEqual(recipe);
   });
 });
-

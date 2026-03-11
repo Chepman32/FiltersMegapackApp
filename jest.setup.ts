@@ -83,6 +83,16 @@ jest.mock('react-native-document-picker', () => ({
   },
 }));
 
+jest.mock('@react-native-menu/menu', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    MenuView: React.forwardRef((props: unknown, ref: unknown) =>
+      React.createElement(View, { ...(props as object), ref }),
+    ),
+  };
+});
+
 jest.mock('react-native-localize', () => ({
   getLocales: () => [{ languageCode: 'en' }],
 }));

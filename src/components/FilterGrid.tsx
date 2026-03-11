@@ -13,7 +13,7 @@ import { palette } from '../theme/colors';
 
 interface FilterGridProps {
   filters: FilterDefinition[];
-  selectedFilterId: string;
+  selectedFilterIds: string[];
   favorites: string[];
   onSelect: (filterId: string) => void;
   onToggleFavorite: (filterId: string) => void;
@@ -30,6 +30,7 @@ interface FilterCardProps {
   cardWidth: number;
   favorite: boolean;
   filter: FilterDefinition;
+  mixOrder?: number;
   onSelect: (filterId: string) => void;
   onToggleFavorite: (filterId: string) => void;
   selected: boolean;
@@ -39,6 +40,7 @@ function FilterCard({
   cardWidth,
   favorite,
   filter,
+  mixOrder,
   onSelect,
   onToggleFavorite,
   selected,
@@ -123,6 +125,11 @@ function FilterCard({
         <Animated.Text style={[styles.meta, metaStyle]}>
           {filter.operations.length} ops · #{filter.indexInCategory + 1}
         </Animated.Text>
+        {typeof mixOrder === 'number' ? (
+          <View style={styles.mixBadge}>
+            <Text style={styles.mixBadgeLabel}>{mixOrder}</Text>
+          </View>
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -130,7 +137,7 @@ function FilterCard({
 
 export function FilterGrid({
   filters,
-  selectedFilterId,
+  selectedFilterIds,
   favorites,
   onSelect,
   onToggleFavorite,
@@ -152,7 +159,7 @@ export function FilterGrid({
       horizontal
       decelerationRate="fast"
       disableIntervalMomentum
-      extraData={{ favorites, selectedFilterId }}
+      extraData={{ favorites, selectedFilterIds }}
       keyExtractor={(item, index) => item[0]?.id ?? `page-${index}`}
       pagingEnabled
       showsHorizontalScrollIndicator={false}
@@ -164,7 +171,8 @@ export function FilterGrid({
             {rows.map((row, rowIndex) => (
               <View key={rowIndex} style={styles.row}>
                 {row.map(filter => {
-                  const selected = filter.id === selectedFilterId;
+                  const mixOrder = selectedFilterIds.indexOf(filter.id);
+                  const selected = mixOrder !== -1;
                   const favorite = favorites.includes(filter.id);
 
                   return (
@@ -173,6 +181,7 @@ export function FilterGrid({
                       favorite={favorite}
                       key={filter.id}
                       filter={filter}
+                      mixOrder={selected ? mixOrder + 1 : undefined}
                       onSelect={onSelect}
                       onToggleFavorite={onToggleFavorite}
                       selected={selected}
@@ -240,5 +249,23 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: palette.textSecondary,
     fontSize: 11,
+  },
+  mixBadge: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(125, 226, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(125, 226, 255, 0.38)',
+  },
+  mixBadgeLabel: {
+    color: palette.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

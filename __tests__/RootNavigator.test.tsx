@@ -45,20 +45,22 @@ describe('RootNavigator tabs', () => {
     useStudioStore.setState({ onboardingSeen: true });
   });
 
-  it('renders the Home tab and removes the redundant Projects tab', async () => {
+  it('renders Home, Mixes, Collage, and Settings tabs', async () => {
     await ReactTestRenderer.act(() => {
       ReactTestRenderer.create(<RootNavigator />);
     });
 
     expect(mockTabScreens.map(screen => screen.name)).toEqual([
       'HomeTab',
-      'EditorTab',
+      'MixesTab',
       'CollageTab',
       'SettingsTab',
     ]);
     expect(mockTabScreens.map(screen => screen.title)).toContain('Home');
+    expect(mockTabScreens.map(screen => screen.title)).toContain('Mixes');
     expect(mockTabScreens.map(screen => screen.name)).not.toContain('CameraTab');
     expect(mockTabScreens.map(screen => screen.name)).not.toContain('ProjectsTab');
+    expect(mockTabScreens.map(screen => screen.name)).not.toContain('EditorTab');
     expect(mockTabScreens).toHaveLength(4);
   });
 });

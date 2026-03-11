@@ -16,6 +16,8 @@ import {
 import Slider from '@react-native-community/slider';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   useAnimatedStyle,
@@ -25,9 +27,13 @@ import Animated, {
 import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
-  NONE_FILTER_ID,
+  MAX_MIX_FILTERS,
+  getActiveFilterIds,
+  normalizeFilterStack,
+  resolveFiltersInStack,
   resolveFilterStack,
 } from '../filters/recipe';
+import type { HomeStackParamList } from '../navigation/types';
 import { useStudioStore } from '../store/useStudioStore';
 import { palette } from '../theme/colors';
 import { FilterCategoryBar } from '../components/FilterCategoryBar';
@@ -40,8 +46,11 @@ import { buildRenderOptions, FilterEngine } from '../native/FilterEngine';
 import { MediaPipeline } from '../native/MediaPipeline';
 import { mapPickerAsset } from '../utils/media';
 
+type EditorNav = NativeStackNavigationProp<HomeStackParamList, 'Editor'>;
+
 export function EditorScreen() {
   const { i18n, t } = useTranslation();
+  const navigation = useNavigation<EditorNav>();
   const { height } = useWindowDimensions();
   const {
     currentAsset,
@@ -54,6 +63,7 @@ export function EditorScreen() {
     commitFilterHistory,
     redoFilterChange,
     resetFilterStack,
+    saveCurrentMix,
     setCategory,
     setFilter,
     setIntensity,
@@ -62,6 +72,7 @@ export function EditorScreen() {
     setPreviewUri,
     scheduleAutosave,
     flushAutosave,
+    toggleMixMode,
     toggleFavorite,
     undoFilterChange,
     createOrUpdateProject,
@@ -96,6 +107,25 @@ export function EditorScreen() {
   );
   const deferredFilters = useDeferredValue(filtersForCategory);
   const activeFilter = resolveFilterStack(filterStack);
+  const activeFilters = useMemo(
+    () => resolveFiltersInStack(filterStack),
+    [filterStack],
+  );
+  const activeFilterIds = useMemo(
+    () => getActiveFilterIds(filterStack),
+    [filterStack],
+  );
+  const mixSignature = useMemo(
+    () =>
+      JSON.stringify({
+        ids: activeFilterIds,
+        intensity: filterStack.intensity,
+        mixEnabled: filterStack.mixEnabled,
+        parameterValues: filterStack.parameterValues,
+      }),
+    [activeFilterIds, filterStack.intensity, filterStack.mixEnabled, filterStack.parameterValues],
+  );
+  const isMixMode = Boolean(filterStack.mixEnabled);
   const previewHeight = Math.min(380, Math.max(290, height * 0.4));
   const undoLabel = t('common.undo', {
     defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
@@ -112,8 +142,9 @@ export function EditorScreen() {
   const originalLabel = t('editor.original', {
     defaultValue: i18n.language.startsWith('ru') ? 'Оригинал' : 'Original',
   });
+  const mixLabel = t('editor.mix');
   const canReset =
-    filterStack.filterId !== NONE_FILTER_ID ||
+    activeFilterIds.length > 0 ||
     filterStack.intensity !== 1 ||
     filterStack.parameterValues.micro !== 0.5 ||
     filterStack.parameterValues.strength !== 1;
@@ -135,6 +166,13 @@ export function EditorScreen() {
     scheduleAutosave();
   }, [currentAsset, filterStack, previewUri, scheduleAutosave]);
 
+  useEffect(() => {
+    if (!isMixMode || activeFilterIds.length < 2) {
+      return;
+    }
+    saveCurrentMix();
+  }, [activeFilterIds.length, isMixMode, mixSignature, saveCurrentMix]);
+
   useEffect(
     () => () => {
       flushAutosave();
@@ -151,7 +189,8 @@ export function EditorScreen() {
   }));
 
   const snapshotFilterStack = (stack: FilterStack): FilterStack => ({
-    ...stack,
+    ...normalizeFilterStack(stack),
+    mixFilterIds: [...getActiveFilterIds(stack)],
     parameterValues: {
       ...stack.parameterValues,
     },
@@ -199,6 +238,21 @@ export function EditorScreen() {
 
   const handleReset = () => {
     resetFilterStack();
+  };
+
+  const handleToggleMixMode = () => {
+    toggleMixMode();
+    setStatusLabel(isMixMode ? t('editor.mixDisabled') : t('editor.mixEnabled'));
+  };
+
+  const handleFilterSelect = (filterId: string) => {
+    const isAlreadySelected = activeFilterIds.includes(filterId);
+    if (isMixMode && !isAlreadySelected && activeFilterIds.length >= MAX_MIX_FILTERS) {
+      setStatusLabel(t('editor.mixLimit', { count: MAX_MIX_FILTERS }));
+      return;
+    }
+    setStatusLabel(null);
+    setFilter(filterId);
   };
 
   const overlayActions = currentAsset ? (
@@ -261,6 +315,16 @@ export function EditorScreen() {
   return (
     <ScreenView style={styles.container}>
       <View style={styles.content}>
+        <View style={styles.navigationRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonLabel}>{t('common.back')}</Text>
+          </Pressable>
+        </View>
         <MediaPreview
           asset={currentAsset}
           overlayActions={overlayActions}
@@ -281,8 +345,63 @@ export function EditorScreen() {
           />
         ) : null}
 
+        <View style={styles.editorTopBar}>
+          <View style={styles.editorHeadingGroup}>
+            <Text style={styles.editorHeading}>{t('common.editor')}</Text>
+            <Text style={styles.editorSubheading}>
+              {isMixMode
+                ? t('editor.mixCount', {
+                    count: activeFilterIds.length,
+                    max: MAX_MIX_FILTERS,
+                  })
+                : t('editor.singleMode')}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={mixLabel}
+            onPress={handleToggleMixMode}
+            style={[
+              styles.mixButton,
+              isMixMode ? styles.mixButtonActive : undefined,
+            ]}
+          >
+            <Text
+              style={[
+                styles.mixButtonLabel,
+                isMixMode ? styles.mixButtonLabelActive : undefined,
+              ]}
+            >
+              {mixLabel}
+            </Text>
+          </Pressable>
+        </View>
+
+        {isMixMode ? (
+          <View style={styles.mixPanel}>
+            <Text style={styles.mixPanelLabel}>{t('editor.mixSelection')}</Text>
+            <View style={styles.mixChipRow}>
+              {activeFilters.length > 0 ? (
+                activeFilters.map(filter => (
+                  <View key={filter.id} style={styles.mixChip}>
+                    <Text numberOfLines={1} style={styles.mixChipLabel}>
+                      {filter.name}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.mixEmptyLabel}>{t('editor.mixEmpty')}</Text>
+              )}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.intensityPanel}>
-          <Text style={styles.intensityTitle}>{activeFilter?.name ?? originalLabel}</Text>
+          <Text style={styles.intensityTitle}>
+            {isMixMode && activeFilters.length > 1
+              ? t('editor.mixActiveTitle', { count: activeFilters.length })
+              : activeFilter?.name ?? originalLabel}
+          </Text>
           <Text style={styles.intensityValue}>{Math.round(filterStack.intensity * 100)}%</Text>
         </View>
         <Slider
@@ -343,10 +462,8 @@ export function EditorScreen() {
           <FilterGrid
             favorites={favorites}
             filters={deferredFilters}
-            selectedFilterId={filterStack.filterId}
-            onSelect={filterId => {
-              setFilter(filterId);
-            }}
+            selectedFilterIds={activeFilterIds}
+            onSelect={handleFilterSelect}
             onToggleFavorite={toggleFavorite}
           />
         </Animated.View>
@@ -364,10 +481,72 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 8,
   },
+  navigationRow: {
+    marginTop: 8,
+    marginHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  backButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: 'rgba(13, 20, 36, 0.88)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  backButtonLabel: {
+    color: palette.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  editorTopBar: {
+    marginTop: 14,
+    marginHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  editorHeadingGroup: {
+    flex: 1,
+  },
+  editorHeading: {
+    color: palette.textPrimary,
+    fontSize: 26,
+    fontWeight: '900',
+  },
+  editorSubheading: {
+    marginTop: 4,
+    color: palette.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  mixButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(125, 226, 255, 0.18)',
+    backgroundColor: '#131b29',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  mixButtonActive: {
+    borderColor: 'rgba(255, 178, 115, 0.44)',
+    backgroundColor: 'rgba(255, 178, 115, 0.16)',
+  },
+  mixButtonLabel: {
+    color: palette.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  mixButtonLabelActive: {
+    color: '#ffd0a9',
+  },
   historyGroup: {
     flexDirection: 'row',
     gap: 8,
     flexShrink: 1,
+    flexWrap: 'wrap',
   },
   headerButton: {
     borderRadius: 12,
@@ -404,6 +583,47 @@ const styles = StyleSheet.create({
   importButton: {
     marginHorizontal: 16,
     marginTop: 12,
+  },
+  mixPanel: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#121927',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  mixPanelLabel: {
+    color: '#ffbe85',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+  },
+  mixChipRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  mixChip: {
+    borderRadius: 999,
+    backgroundColor: '#1a2436',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  mixChipLabel: {
+    color: '#dce7ff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  mixEmptyLabel: {
+    color: palette.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
   },
   intensityPanel: {
     marginTop: 10,

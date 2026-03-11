@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-type TabBarIconKind = 'home' | 'editor' | 'collage' | 'settings';
+type TabBarIconKind = 'home' | 'mixes' | 'collage' | 'settings';
 
 interface TabBarIconProps {
   kind: TabBarIconKind;
@@ -12,7 +12,7 @@ export function TabBarIcon({ kind, color, focused }: TabBarIconProps) {
   return (
     <View style={[styles.frame, focused ? styles.frameFocused : undefined]}>
       {kind === 'home' ? <HomeIcon color={color} /> : null}
-      {kind === 'editor' ? <EditorIcon color={color} /> : null}
+      {kind === 'mixes' ? <MixesIcon color={color} /> : null}
       {kind === 'collage' ? <CollageIcon color={color} /> : null}
       {kind === 'settings' ? <SettingsIcon color={color} /> : null}
     </View>
@@ -30,15 +30,12 @@ function HomeIcon({ color }: { color: string }) {
   );
 }
 
-function EditorIcon({ color }: { color: string }) {
+function MixesIcon({ color }: { color: string }) {
   return (
     <View style={styles.canvas}>
-      <View style={[styles.editorTrack, styles.editorTrackTop, { backgroundColor: color }]} />
-      <View style={[styles.editorTrack, styles.editorTrackMiddle, { backgroundColor: color }]} />
-      <View style={[styles.editorTrack, styles.editorTrackBottom, { backgroundColor: color }]} />
-      <View style={[styles.editorKnob, styles.editorKnobTop, { backgroundColor: color }]} />
-      <View style={[styles.editorKnob, styles.editorKnobMiddle, { backgroundColor: color }]} />
-      <View style={[styles.editorKnob, styles.editorKnobBottom, { backgroundColor: color }]} />
+      <View style={[styles.mixCard, styles.mixCardPrimary, { borderColor: color }]} />
+      <View style={[styles.mixCard, styles.mixCardSecondary, { borderColor: color }]} />
+      <View style={[styles.mixGlow, { backgroundColor: color }]} />
     </View>
   );
 }
@@ -117,41 +114,28 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
-  editorTrack: {
+  mixCard: {
     position: 'absolute',
-    left: 3,
-    width: 16,
-    height: 1.7,
-    borderRadius: 1,
-  },
-  editorTrackTop: {
-    top: 5,
-  },
-  editorTrackMiddle: {
-    top: 10,
-    width: 14,
-  },
-  editorTrackBottom: {
-    top: 15,
     width: 12,
+    height: 12,
+    borderWidth: 1.7,
+    borderRadius: 4,
   },
-  editorKnob: {
+  mixCardPrimary: {
+    top: 4,
+    left: 3,
+  },
+  mixCardSecondary: {
+    bottom: 4,
+    right: 3,
+  },
+  mixGlow: {
     position: 'absolute',
+    top: 8.5,
+    left: 8.5,
     width: 5,
     height: 5,
     borderRadius: 2.5,
-  },
-  editorKnobTop: {
-    top: 3,
-    left: 5,
-  },
-  editorKnobMiddle: {
-    top: 8,
-    left: 11,
-  },
-  editorKnobBottom: {
-    top: 13,
-    left: 8,
   },
   collageCell: {
     position: 'absolute',

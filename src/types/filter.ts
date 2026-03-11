@@ -82,8 +82,18 @@ export interface FilterCategory {
 
 export interface FilterStack {
   filterId: string;
+  mixEnabled: boolean;
+  mixFilterIds: string[];
   intensity: number;
   parameterValues: Record<string, number>;
+}
+
+export interface FilterMixDocument {
+  id: string;
+  name: string;
+  filterStack: FilterStack;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Recipe {

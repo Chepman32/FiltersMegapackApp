@@ -89,6 +89,7 @@ function resetStore() {
     canRedo: false,
     favorites: [],
     recents: [],
+    mixes: [],
     onboardingSeen: false,
     language: 'en',
     performanceMode: true,

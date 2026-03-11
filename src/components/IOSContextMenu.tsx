@@ -1,13 +1,6 @@
-import {
-  Platform,
-  UIManager,
-  View,
-  type StyleProp,
-  type ViewProps,
-  type ViewStyle,
-  requireNativeComponent,
-} from 'react-native';
 import type { ReactNode } from 'react';
+import { Platform, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
+import { MenuView, type MenuAction } from '@react-native-menu/menu';
 
 export interface IOSContextMenuAction {
   id: string;
@@ -17,6 +10,7 @@ export interface IOSContextMenuAction {
   destructive?: boolean;
   disabled?: boolean;
   children?: IOSContextMenuAction[];
+  displayInline?: boolean;
 }
 
 interface IOSContextMenuProps extends ViewProps {
@@ -26,34 +20,30 @@ interface IOSContextMenuProps extends ViewProps {
   style?: StyleProp<ViewStyle>;
 }
 
-interface NativeMenuEvent {
-  nativeEvent: {
-    actionId: string;
-  };
+function mapActions(actions: IOSContextMenuAction[]): MenuAction[] {
+  return actions.map(action => ({
+    id: action.id,
+    title: action.title,
+    subtitle: action.subtitle,
+    image: action.systemIcon,
+    displayInline: action.displayInline,
+    attributes: {
+      destructive: action.destructive,
+      disabled: action.disabled,
+    },
+    subactions: action.children ? mapActions(action.children) : undefined,
+  }));
 }
-
-interface NativeContextMenuViewProps extends ViewProps {
-  menuConfig: {
-    actions: IOSContextMenuAction[];
-  };
-  onPressMenuItem?: (event: NativeMenuEvent) => void;
-}
-
-const viewManagerName = 'RNContextMenuViewManager';
-const NativeContextMenuView =
-  Platform.OS === 'ios' &&
-  UIManager.getViewManagerConfig?.(viewManagerName)
-    ? requireNativeComponent<NativeContextMenuViewProps>(viewManagerName)
-    : null;
 
 export function IOSContextMenu({
   actions,
   children,
   onPressAction,
   style,
+  testID,
   ...viewProps
 }: IOSContextMenuProps) {
-  if (Platform.OS !== 'ios' || !NativeContextMenuView || actions.length === 0) {
+  if (Platform.OS !== 'ios' || actions.length === 0) {
     return (
       <View {...viewProps} style={style}>
         {children}
@@ -62,13 +52,15 @@ export function IOSContextMenu({
   }
 
   return (
-    <NativeContextMenuView
-      {...viewProps}
-      menuConfig={{ actions }}
-      onPressMenuItem={event => onPressAction(event.nativeEvent.actionId)}
+    <MenuView
+      actions={mapActions(actions)}
+      onPressAction={event => onPressAction(event.nativeEvent.event)}
+      shouldOpenOnLongPress
       style={style}
+      testID={testID}
+      themeVariant="light"
     >
       {children}
-    </NativeContextMenuView>
+    </MenuView>
   );
 }

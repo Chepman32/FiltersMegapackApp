@@ -54,7 +54,9 @@ export function ProjectsScreen() {
             accessibilityLabel={item.title}
             onPress={() => {
               openProject(item.id);
-              navigation.navigate('EditorTab');
+              navigation.navigate('HomeTab', {
+                screen: 'Editor',
+              });
             }}
             style={styles.card}
           >

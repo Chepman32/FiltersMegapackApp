@@ -1,4 +1,4 @@
-import { createNeutralFilterStack } from '../filters/recipe';
+import { createNeutralFilterStack, normalizeFilterStack } from '../filters/recipe';
 import type { FolderDocument } from '../types/folder';
 import type { ProjectDocument } from '../types/project';
 import { db } from './sqlite';
@@ -56,7 +56,7 @@ function normalizeProject(
     coverUri: parsed.coverUri,
     assets: parsed.assets ?? [],
     activeAssetId: parsed.activeAssetId,
-    filterStack: parsed.filterStack ?? createNeutralFilterStack(),
+    filterStack: normalizeFilterStack(parsed.filterStack ?? createNeutralFilterStack()),
     history: parsed.history ?? [],
     historyCursor: parsed.historyCursor ?? 0,
     collageLayoutId: parsed.collageLayoutId,

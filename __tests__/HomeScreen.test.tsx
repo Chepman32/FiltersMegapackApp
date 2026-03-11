@@ -56,6 +56,8 @@ function makeProject(overrides: Partial<ProjectDocument>): ProjectDocument {
     activeAssetId: overrides.activeAssetId,
     filterStack: overrides.filterStack ?? {
       filterId: '__none__',
+      mixEnabled: false,
+      mixFilterIds: [],
       intensity: 1,
       parameterValues: { strength: 1, micro: 0.5 },
     },

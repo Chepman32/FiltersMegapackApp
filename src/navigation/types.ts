@@ -1,6 +1,13 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
+export type HomeStackParamList = {
+  HomeMain: undefined;
+  Editor: undefined;
+};
+
 export type StudioTabsParamList = {
-  HomeTab: undefined;
-  EditorTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
+  MixesTab: undefined;
   CollageTab: undefined;
   SettingsTab: undefined;
 };

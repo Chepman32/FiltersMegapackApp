@@ -14,10 +14,10 @@ import {
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { pickSingle, isCancel as isDocumentPickerCancel, types } from 'react-native-document-picker';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import type { StudioTabsParamList } from '../navigation/types';
+import type { HomeStackParamList } from '../navigation/types';
 import { IOSContextMenu, type IOSContextMenuAction } from '../components/IOSContextMenu';
 import { ScreenView } from '../components/Screen';
 import { useStudioStore } from '../store/useStudioStore';
@@ -26,7 +26,7 @@ import type { FolderDocument } from '../types/folder';
 import type { ProjectDocument } from '../types/project';
 import { mapDocumentAsset, mapPickerAsset } from '../utils/media';
 
-type HomeNav = BottomTabNavigationProp<StudioTabsParamList>;
+type HomeNav = NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
 
 type SectionState = Record<string, boolean>;
 
@@ -152,7 +152,7 @@ export function HomeScreen() {
       return;
     }
     setCurrentAsset(uriAction, { resetProject: true });
-    navigation.navigate('EditorTab');
+    navigation.navigate('Editor');
   };
 
   const handleOpenGallery = () => {
@@ -256,7 +256,7 @@ export function HomeScreen() {
     }
     const opened = openProject(project.id);
     if (opened) {
-      navigation.navigate('EditorTab');
+      navigation.navigate('Editor');
     }
   };
 

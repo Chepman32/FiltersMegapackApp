@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 import type { FolderDocument, FolderWithProjects } from '../types/folder';
-import type { FilterCategoryId, FilterStack } from '../types/filter';
+import type {
+  FilterCategoryId,
+  FilterMixDocument,
+  FilterStack,
+} from '../types/filter';
 import type { MediaAssetRef } from '../types/media';
 import type { ProjectDocument } from '../types/project';
 import {
   NONE_FILTER_ID,
   createDefaultFilterStack,
   createNeutralFilterStack,
+  getActiveFilterIds,
+  normalizeFilterStack,
 } from '../filters/recipe';
 import { getFilterById } from '../filters/filterCatalog';
 import { readJSON, writeJSON } from './storage';
@@ -27,6 +33,7 @@ const FAVORITES_KEY = 'favorites';
 const RECENTS_KEY = 'recents';
 const ONBOARDING_KEY = 'onboardingSeen';
 const LANGUAGE_KEY = 'language';
+const MIXES_KEY = 'mixes';
 const PERFORMANCE_KEY = 'performanceMode';
 const AUTOSAVE_DEBOUNCE_MS = 420;
 const UNTITLED_PROJECT_TITLE = 'Untitled Project';
@@ -45,17 +52,23 @@ interface HomeProjectsState {
   trashProjects: ProjectDocument[];
 }
 
+interface HistorySnapshot {
+  filterStack: FilterStack;
+  selectedCategoryId: FilterCategoryId;
+}
+
 interface StudioState {
   currentAsset: MediaAssetRef | null;
   previewUri: string | null;
   filterStack: FilterStack;
   selectedCategoryId: FilterCategoryId;
-  filterHistoryPast: FilterStack[];
-  filterHistoryFuture: FilterStack[];
+  filterHistoryPast: HistorySnapshot[];
+  filterHistoryFuture: HistorySnapshot[];
   canUndo: boolean;
   canRedo: boolean;
   favorites: string[];
   recents: string[];
+  mixes: FilterMixDocument[];
   onboardingSeen: boolean;
   language: 'en' | 'ru';
   performanceMode: boolean;
@@ -67,6 +80,7 @@ interface StudioState {
   setPreviewUri: (uri: string | null) => void;
   setCategory: (categoryId: FilterCategoryId) => void;
   setFilter: (filterId: string, options?: FilterChangeOptions) => void;
+  toggleMixMode: () => void;
   setIntensity: (intensity: number, options?: FilterChangeOptions) => void;
   setParameter: (id: string, value: number, options?: FilterChangeOptions) => void;
   resetFilterStack: (options?: FilterChangeOptions) => void;
@@ -94,6 +108,8 @@ interface StudioState {
   recoverProject: (projectId: string) => ProjectDocument | null;
   removeProjectPermanently: (projectId: string) => void;
   cleanTrash: () => void;
+  saveCurrentMix: () => FilterMixDocument | null;
+  applyMix: (mixId: string) => FilterMixDocument | null;
   scheduleAutosave: () => void;
   flushAutosave: () => ProjectDocument | null;
 }
@@ -103,6 +119,7 @@ const initialFilterStack = createDefaultFilterStack();
 const initialFavorites = readJSON<string[]>(FAVORITES_KEY, []);
 const initialRecents = readJSON<string[]>(RECENTS_KEY, []);
 const initialLanguage = readJSON<'en' | 'ru'>(LANGUAGE_KEY, 'en');
+const initialMixes = loadMixes();
 const initialPerformance = readJSON<boolean>(PERFORMANCE_KEY, true);
 const EMPTY_HOME_PROJECTS: HomeProjectsState = {
   allProjects: [],
@@ -113,10 +130,12 @@ const EMPTY_HOME_PROJECTS: HomeProjectsState = {
 let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function cloneFilterStack(stack: FilterStack): FilterStack {
+  const normalizedStack = normalizeFilterStack(stack);
   return {
-    ...stack,
+    ...normalizedStack,
+    mixFilterIds: [...normalizedStack.mixFilterIds],
     parameterValues: {
-      ...stack.parameterValues,
+      ...normalizedStack.parameterValues,
     },
   };
 }
@@ -134,10 +153,20 @@ function sameParameterValues(
 }
 
 function sameFilterStack(left: FilterStack, right: FilterStack) {
+  const normalizedLeft = normalizeFilterStack(left);
+  const normalizedRight = normalizeFilterStack(right);
   return (
-    left.filterId === right.filterId &&
-    left.intensity === right.intensity &&
-    sameParameterValues(left.parameterValues, right.parameterValues)
+    normalizedLeft.filterId === normalizedRight.filterId &&
+    normalizedLeft.mixEnabled === normalizedRight.mixEnabled &&
+    normalizedLeft.mixFilterIds.length === normalizedRight.mixFilterIds.length &&
+    normalizedLeft.mixFilterIds.every(
+      (filterId, index) => filterId === normalizedRight.mixFilterIds[index],
+    ) &&
+    normalizedLeft.intensity === normalizedRight.intensity &&
+    sameParameterValues(
+      normalizedLeft.parameterValues,
+      normalizedRight.parameterValues,
+    )
   );
 }
 
@@ -162,7 +191,17 @@ function sameProjectData(left: ProjectDocument, right: ProjectDocument) {
   );
 }
 
-function historyState(past: FilterStack[], future: FilterStack[]) {
+function createHistorySnapshot(
+  filterStack: FilterStack,
+  selectedCategoryId: FilterCategoryId,
+): HistorySnapshot {
+  return {
+    filterStack: cloneFilterStack(filterStack),
+    selectedCategoryId,
+  };
+}
+
+function historyState(past: HistorySnapshot[], future: HistorySnapshot[]) {
   return {
     filterHistoryPast: past,
     filterHistoryFuture: future,
@@ -171,21 +210,114 @@ function historyState(past: FilterStack[], future: FilterStack[]) {
   };
 }
 
-function categoryForFilterId(
-  filterId: string,
+function categoryForFilterStack(
+  filterStack: FilterStack,
   fallback: FilterCategoryId,
 ): FilterCategoryId {
   if (fallback === 'favorites') {
     return 'favorites';
   }
-  if (filterId === NONE_FILTER_ID) {
+  const activeFilterIds = getActiveFilterIds(filterStack);
+  const primaryFilterId =
+    activeFilterIds[activeFilterIds.length - 1] ?? filterStack.filterId;
+  if (primaryFilterId === NONE_FILTER_ID) {
     return fallback;
   }
-  return getFilterById(filterId).categoryId;
+  return getFilterById(primaryFilterId).categoryId;
 }
 
 function normalizeName(name: string): string {
   return name.trim();
+}
+
+function serializeParameterValues(values: Record<string, number>) {
+  return JSON.stringify(
+    Object.keys(values)
+      .sort()
+      .reduce<Record<string, number>>((acc, key) => {
+        acc[key] = values[key];
+        return acc;
+      }, {}),
+  );
+}
+
+function buildMixSignature(filterStack: FilterStack): string {
+  const normalizedStack = normalizeFilterStack(filterStack);
+  return JSON.stringify({
+    mixEnabled: normalizedStack.mixEnabled,
+    mixFilterIds: getActiveFilterIds(normalizedStack),
+    intensity: normalizedStack.intensity,
+    parameterValues: serializeParameterValues(normalizedStack.parameterValues),
+  });
+}
+
+function buildMixName(filterStack: FilterStack): string {
+  const filters = getActiveFilterIds(filterStack).map(getFilterById);
+  const names = filters.slice(0, 3).map(filter => filter.name);
+  if (filters.length <= 3) {
+    return names.join(' + ');
+  }
+  return `${names.join(' + ')} +${filters.length - 3}`;
+}
+
+function normalizeMixDocument(mix: FilterMixDocument): FilterMixDocument {
+  return {
+    ...mix,
+    filterStack: cloneFilterStack({
+      ...mix.filterStack,
+      mixEnabled: true,
+      mixFilterIds: getActiveFilterIds(mix.filterStack),
+    }),
+  };
+}
+
+function persistMixes(mixes: FilterMixDocument[]) {
+  writeJSON(
+    MIXES_KEY,
+    mixes.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+  );
+}
+
+function loadMixes(): FilterMixDocument[] {
+  return readJSON<FilterMixDocument[]>(MIXES_KEY, [])
+    .map(normalizeMixDocument)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+function upsertMixDocument(
+  mixes: FilterMixDocument[],
+  filterStack: FilterStack,
+): { mix: FilterMixDocument; mixes: FilterMixDocument[] } | null {
+  const activeFilterIds = getActiveFilterIds(filterStack);
+  if (activeFilterIds.length < 2) {
+    return null;
+  }
+
+  const normalizedStack = cloneFilterStack({
+    ...filterStack,
+    mixEnabled: true,
+    mixFilterIds: activeFilterIds,
+    filterId: activeFilterIds[activeFilterIds.length - 1] ?? NONE_FILTER_ID,
+  });
+  const signature = buildMixSignature(normalizedStack);
+  const existing = mixes.find(
+    mix => buildMixSignature(mix.filterStack) === signature,
+  );
+  const now = new Date().toISOString();
+  const mix: FilterMixDocument = {
+    id: existing?.id ?? createId('mix'),
+    name: existing?.name ?? buildMixName(normalizedStack),
+    filterStack: normalizedStack,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  const nextMixes = [mix, ...mixes.filter(item => item.id !== mix.id)].sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  );
+  return {
+    mix,
+    mixes: nextMixes,
+  };
 }
 
 function buildHomeProjects(
@@ -279,6 +411,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   canRedo: false,
   favorites: initialFavorites,
   recents: initialRecents,
+  mixes: initialMixes,
   onboardingSeen: readJSON<boolean>(ONBOARDING_KEY, false),
   language: initialLanguage,
   performanceMode: initialPerformance,
@@ -309,53 +442,131 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   setFilter(filterId, options) {
     set(state => {
-      const nextFilterId =
-        state.filterStack.filterId === filterId ? NONE_FILTER_ID : filterId;
-      if (state.filterStack.filterId === nextFilterId) {
-        return {};
+      const currentStack = cloneFilterStack(state.filterStack);
+      let nextStack: FilterStack;
+      let recents = state.recents;
+
+      if (currentStack.mixEnabled) {
+        const activeFilterIds = getActiveFilterIds(currentStack);
+        if (activeFilterIds.includes(filterId)) {
+          const nextFilterIds = activeFilterIds.filter(id => id !== filterId);
+          nextStack = normalizeFilterStack({
+            ...currentStack,
+            filterId: nextFilterIds[nextFilterIds.length - 1] ?? NONE_FILTER_ID,
+            mixEnabled: true,
+            mixFilterIds: nextFilterIds,
+          });
+        } else {
+          nextStack = normalizeFilterStack({
+            ...currentStack,
+            filterId,
+            mixEnabled: true,
+            mixFilterIds: [...activeFilterIds, filterId],
+          });
+          recents = [filterId, ...state.recents.filter(id => id !== filterId)].slice(0, 32);
+          writeJSON(RECENTS_KEY, recents);
+        }
+      } else {
+        const nextFilterId =
+          currentStack.filterId === filterId ? NONE_FILTER_ID : filterId;
+        nextStack = normalizeFilterStack({
+          ...currentStack,
+          filterId: nextFilterId,
+          mixEnabled: false,
+          mixFilterIds: nextFilterId === NONE_FILTER_ID ? [] : [nextFilterId],
+        });
+        if (nextFilterId !== NONE_FILTER_ID) {
+          recents = [nextFilterId, ...state.recents.filter(id => id !== nextFilterId)].slice(
+            0,
+            32,
+          );
+          writeJSON(RECENTS_KEY, recents);
+        }
       }
-      const recents =
-        nextFilterId === NONE_FILTER_ID
-          ? state.recents
-          : [nextFilterId, ...state.recents.filter(id => id !== nextFilterId)].slice(
-              0,
-              32,
-            );
-      if (nextFilterId !== NONE_FILTER_ID) {
-        writeJSON(RECENTS_KEY, recents);
+
+      if (sameFilterStack(currentStack, nextStack)) {
+        return {};
       }
       const past =
         options?.trackHistory === false
           ? state.filterHistoryPast
-          : [...state.filterHistoryPast, cloneFilterStack(state.filterStack)];
+          : [
+              ...state.filterHistoryPast,
+              createHistorySnapshot(
+                currentStack,
+                categoryForFilterStack(currentStack, state.selectedCategoryId),
+              ),
+            ];
       const future =
         options?.trackHistory === false ? state.filterHistoryFuture : [];
       return {
-        filterStack: {
-          ...state.filterStack,
-          filterId: nextFilterId,
-        },
-        selectedCategoryId: categoryForFilterId(nextFilterId, state.selectedCategoryId),
+        filterStack: nextStack,
+        selectedCategoryId: categoryForFilterStack(nextStack, state.selectedCategoryId),
         recents,
         ...historyState(past, future),
       };
     });
   },
 
+  toggleMixMode() {
+    set(state => {
+      const currentStack = cloneFilterStack(state.filterStack);
+      const activeFilterIds = getActiveFilterIds(currentStack);
+      const nextStack = currentStack.mixEnabled
+        ? normalizeFilterStack({
+            ...currentStack,
+            filterId: activeFilterIds[activeFilterIds.length - 1] ?? NONE_FILTER_ID,
+            mixEnabled: false,
+            mixFilterIds: [],
+          })
+        : normalizeFilterStack({
+            ...currentStack,
+            mixEnabled: true,
+            mixFilterIds: activeFilterIds,
+          });
+
+      if (sameFilterStack(currentStack, nextStack)) {
+        return {};
+      }
+
+      return {
+        filterStack: nextStack,
+        selectedCategoryId: categoryForFilterStack(nextStack, state.selectedCategoryId),
+        ...historyState(
+          [
+            ...state.filterHistoryPast,
+            createHistorySnapshot(
+              currentStack,
+              categoryForFilterStack(currentStack, state.selectedCategoryId),
+            ),
+          ],
+          [],
+        ),
+      };
+    });
+  },
+
   setIntensity(intensity, options) {
     set(state => {
-      if (state.filterStack.intensity === intensity) {
+      const currentStack = cloneFilterStack(state.filterStack);
+      if (currentStack.intensity === intensity) {
         return {};
       }
       return {
         ...(options?.trackHistory === false
           ? {}
           : historyState(
-              [...state.filterHistoryPast, cloneFilterStack(state.filterStack)],
+              [
+                ...state.filterHistoryPast,
+                createHistorySnapshot(
+                  currentStack,
+                  categoryForFilterStack(currentStack, state.selectedCategoryId),
+                ),
+              ],
               [],
             )),
         filterStack: {
-          ...state.filterStack,
+          ...currentStack,
           intensity,
         },
       };
@@ -364,20 +575,27 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   setParameter(id, value, options) {
     set(state => {
-      if (state.filterStack.parameterValues[id] === value) {
+      const currentStack = cloneFilterStack(state.filterStack);
+      if (currentStack.parameterValues[id] === value) {
         return {};
       }
       return {
         ...(options?.trackHistory === false
           ? {}
           : historyState(
-              [...state.filterHistoryPast, cloneFilterStack(state.filterStack)],
+              [
+                ...state.filterHistoryPast,
+                createHistorySnapshot(
+                  currentStack,
+                  categoryForFilterStack(currentStack, state.selectedCategoryId),
+                ),
+              ],
               [],
             )),
         filterStack: {
-          ...state.filterStack,
+          ...currentStack,
           parameterValues: {
-            ...state.filterStack.parameterValues,
+            ...currentStack.parameterValues,
             [id]: value,
           },
         },
@@ -388,14 +606,21 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   resetFilterStack(options) {
     set(state => {
       const neutralStack = createNeutralFilterStack();
-      if (sameFilterStack(state.filterStack, neutralStack)) {
+      const currentStack = cloneFilterStack(state.filterStack);
+      if (sameFilterStack(currentStack, neutralStack)) {
         return {};
       }
       return {
         ...(options?.trackHistory === false
           ? {}
           : historyState(
-              [...state.filterHistoryPast, cloneFilterStack(state.filterStack)],
+              [
+                ...state.filterHistoryPast,
+                createHistorySnapshot(
+                  currentStack,
+                  categoryForFilterStack(currentStack, state.selectedCategoryId),
+                ),
+              ],
               [],
             )),
         filterStack: neutralStack,
@@ -409,7 +634,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         return {};
       }
       return historyState(
-        [...state.filterHistoryPast, cloneFilterStack(previousStack)],
+        [
+          ...state.filterHistoryPast,
+          createHistorySnapshot(
+            previousStack,
+            categoryForFilterStack(previousStack, state.selectedCategoryId),
+          ),
+        ],
         [],
       );
     });
@@ -417,18 +648,21 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   undoFilterChange() {
     set(state => {
-      const previousStack = state.filterHistoryPast[state.filterHistoryPast.length - 1];
-      if (!previousStack) {
+      const previousSnapshot = state.filterHistoryPast[state.filterHistoryPast.length - 1];
+      if (!previousSnapshot) {
         return {};
       }
       const past = state.filterHistoryPast.slice(0, -1);
-      const future = [cloneFilterStack(state.filterStack), ...state.filterHistoryFuture];
-      return {
-        filterStack: cloneFilterStack(previousStack),
-        selectedCategoryId: categoryForFilterId(
-          previousStack.filterId,
-          state.selectedCategoryId,
+      const future = [
+        createHistorySnapshot(
+          state.filterStack,
+          categoryForFilterStack(state.filterStack, state.selectedCategoryId),
         ),
+        ...state.filterHistoryFuture,
+      ];
+      return {
+        filterStack: cloneFilterStack(previousSnapshot.filterStack),
+        selectedCategoryId: previousSnapshot.selectedCategoryId,
         ...historyState(past, future),
       };
     });
@@ -436,14 +670,20 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   redoFilterChange() {
     set(state => {
-      const [nextStack, ...future] = state.filterHistoryFuture;
-      if (!nextStack) {
+      const [nextSnapshot, ...future] = state.filterHistoryFuture;
+      if (!nextSnapshot) {
         return {};
       }
-      const past = [...state.filterHistoryPast, cloneFilterStack(state.filterStack)];
+      const past = [
+        ...state.filterHistoryPast,
+        createHistorySnapshot(
+          state.filterStack,
+          categoryForFilterStack(state.filterStack, state.selectedCategoryId),
+        ),
+      ];
       return {
-        filterStack: cloneFilterStack(nextStack),
-        selectedCategoryId: categoryForFilterId(nextStack.filterId, state.selectedCategoryId),
+        filterStack: cloneFilterStack(nextSnapshot.filterStack),
+        selectedCategoryId: nextSnapshot.selectedCategoryId,
         ...historyState(past, future),
       };
     });
@@ -460,7 +700,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         favorites,
         selectedCategoryId:
           state.selectedCategoryId === 'favorites' && favorites.length === 0
-            ? categoryForFilterId(state.filterStack.filterId, 'cinematic')
+            ? categoryForFilterStack(state.filterStack, 'cinematic')
             : state.selectedCategoryId,
       };
     });
@@ -515,10 +755,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({
       activeProjectId: project.id,
       filterStack: cloneFilterStack(project.filterStack),
-      selectedCategoryId: categoryForFilterId(
-        project.filterStack.filterId,
-        get().selectedCategoryId,
-      ),
+      selectedCategoryId: categoryForFilterStack(project.filterStack, get().selectedCategoryId),
       currentAsset: project.assets.find(asset => asset.id === project.activeAssetId) ?? null,
       previewUri: project.coverUri ?? project.assets[0]?.uri ?? null,
       ...historyState([], []),
@@ -685,6 +922,37 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       .filter(project => project.isTrashed)
       .forEach(project => deleteProject(project.id));
     set(loadHomeState());
+  },
+
+  saveCurrentMix() {
+    const state = get();
+    const result = upsertMixDocument(state.mixes, state.filterStack);
+    if (!result) {
+      return null;
+    }
+    persistMixes(result.mixes);
+    set({
+      mixes: result.mixes,
+    });
+    return result.mix;
+  },
+
+  applyMix(mixId) {
+    const mix = get().mixes.find(item => item.id === mixId);
+    if (!mix) {
+      return null;
+    }
+    const nextStack = cloneFilterStack({
+      ...mix.filterStack,
+      mixEnabled: true,
+      mixFilterIds: getActiveFilterIds(mix.filterStack),
+    });
+    set(state => ({
+      filterStack: nextStack,
+      selectedCategoryId: categoryForFilterStack(nextStack, state.selectedCategoryId),
+      ...historyState([], []),
+    }));
+    return mix;
   },
 
   scheduleAutosave() {

@@ -5,7 +5,7 @@ import {
   type TurboModule,
 } from 'react-native';
 import type { FilterStack } from '../types/filter';
-import { resolveFilterStack } from '../filters/recipe';
+import { resolveFiltersInStack } from '../filters/recipe';
 
 export interface RenderResult {
   uri: string;
@@ -73,10 +73,10 @@ export function buildRenderOptions(
   stack: FilterStack,
   kind: FilterRenderOptions['kind'],
 ): FilterRenderOptions {
-  const filter = resolveFilterStack(stack);
+  const filters = resolveFiltersInStack(stack);
   return {
     stack,
-    operations: filter?.operations ?? [],
+    operations: filters.flatMap(filter => filter.operations),
     kind,
     maxDimension: kind === 'photo' ? 2560 : 1920,
     quality: 0.95,
