@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import type { Asset, ImagePickerResponse } from 'react-native-image-picker';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { useStudioStore } from '../store/useStudioStore';
 import { mapPickerAsset } from '../utils/media';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ScreenView } from '../components/Screen';
 
 type CameraNav = BottomTabNavigationProp<StudioTabsParamList>;
 
@@ -44,7 +45,7 @@ export function CameraScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenView style={styles.container}>
       <Text style={styles.title}>{t('camera.title')}</Text>
       <Text style={styles.subtitle}>{t('camera.subtitle')}</Text>
 
@@ -93,7 +94,7 @@ export function CameraScreen() {
       <Text style={styles.note}>
         {loading ? t('common.loading') : `${t('common.camera')} · 240 filters ready`}
       </Text>
-    </View>
+    </ScreenView>
   );
 }
 

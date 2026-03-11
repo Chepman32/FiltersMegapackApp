@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18n from '../localization/i18n';
 import { palette } from '../theme/colors';
+import { ScreenScrollView } from '../components/Screen';
 import { useStudioStore } from '../store/useStudioStore';
 import { FilterEngine, type FilterEngineCapabilities } from '../native/FilterEngine';
 
@@ -32,7 +33,7 @@ export function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScreenScrollView contentContainerStyle={styles.content}>
       <Text style={styles.title}>{t('common.settings')}</Text>
 
       <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
@@ -87,15 +88,11 @@ export function SettingsScreen() {
       <Text style={styles.version}>
         {t('settings.appVersion')}: {APP_VERSION}
       </Text>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.bg,
-  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 24,
@@ -172,4 +169,3 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
-

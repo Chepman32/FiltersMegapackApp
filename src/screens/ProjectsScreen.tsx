@@ -8,6 +8,7 @@ import type { StudioTabsParamList } from '../navigation/types';
 import { useStudioStore } from '../store/useStudioStore';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ScreenView } from '../components/Screen';
 
 type ProjectsNav = BottomTabNavigationProp<StudioTabsParamList>;
 
@@ -24,7 +25,7 @@ export function ProjectsScreen() {
   }, [refreshProjects]);
 
   return (
-    <View style={styles.container}>
+    <ScreenView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('projects.title')}</Text>
         <Text style={styles.subtitle}>{t('projects.subtitle')}</Text>
@@ -71,7 +72,7 @@ export function ProjectsScreen() {
           </Pressable>
         )}
       />
-    </View>
+    </ScreenView>
   );
 }
 

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, StudioTabsParamList } from './types';
 import { CameraScreen } from '../screens/CameraScreen';
 import { EditorScreen } from '../screens/EditorScreen';
@@ -17,6 +18,7 @@ const Tabs = createBottomTabNavigator<StudioTabsParamList>();
 
 function StudioTabs() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const labels = useMemo(
     () => ({
       camera: t('common.camera'),
@@ -37,8 +39,8 @@ function StudioTabs() {
         tabBarStyle: {
           backgroundColor: '#111522',
           borderTopColor: palette.border,
-          height: 66,
-          paddingBottom: 8,
+          height: 58 + Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
       }}
@@ -89,4 +91,3 @@ export function RootNavigator() {
     </Stack.Navigator>
   );
 }
-

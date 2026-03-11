@@ -17,6 +17,7 @@ import { FilterCategoryBar } from '../components/FilterCategoryBar';
 import { FilterGrid } from '../components/FilterGrid';
 import { MediaPreview } from '../components/MediaPreview';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ScreenView } from '../components/Screen';
 import { useRenderPreview } from '../hooks/useRenderPreview';
 import { AIEffects } from '../native/AIEffects';
 import { buildRenderOptions, FilterEngine } from '../native/FilterEngine';
@@ -159,7 +160,7 @@ export function EditorScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <MediaPreview
           asset={currentAsset}
@@ -261,7 +262,7 @@ export function EditorScreen() {
         onPress={handleExport}
         style={styles.exportButton}
       />
-    </View>
+    </ScreenView>
   );
 }
 
@@ -345,4 +346,3 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 });
-

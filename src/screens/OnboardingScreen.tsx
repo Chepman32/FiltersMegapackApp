@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ScreenView } from '../components/Screen';
 import { useStudioStore } from '../store/useStudioStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
@@ -13,7 +14,7 @@ export function OnboardingScreen({ navigation }: Props) {
   const setOnboardingSeen = useStudioStore(state => state.setOnboardingSeen);
 
   return (
-    <View style={styles.container}>
+    <ScreenView style={styles.container}>
       <View style={styles.hero}>
         <Text style={styles.title}>{t('onboarding.title')}</Text>
         <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
@@ -25,7 +26,7 @@ export function OnboardingScreen({ navigation }: Props) {
           navigation.replace('Studio');
         }}
       />
-    </View>
+    </ScreenView>
   );
 }
 
@@ -38,7 +39,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   hero: {
-    marginTop: 120,
+    marginTop: 72,
   },
   title: {
     color: palette.textPrimary,
@@ -53,4 +54,3 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 });
-

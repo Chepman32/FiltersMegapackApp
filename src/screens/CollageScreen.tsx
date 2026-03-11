@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,6 +12,7 @@ import { mapPickerAsset } from '../utils/media';
 import { useStudioStore } from '../store/useStudioStore';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ScreenScrollView } from '../components/Screen';
 
 const LAYOUTS = [2, 3, 4, 6, 9] as const;
 
@@ -39,7 +39,7 @@ export function CollageScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScreenScrollView contentContainerStyle={styles.content}>
       <Text style={styles.title}>{t('collage.title')}</Text>
       <Text style={styles.subtitle}>{t('collage.subtitle')}</Text>
 
@@ -71,15 +71,11 @@ export function CollageScreen() {
       </View>
 
       <PrimaryButton label={t('collage.addSlot')} onPress={handleAddAsset} />
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.bg,
-  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 24,
@@ -145,4 +141,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
