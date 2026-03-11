@@ -1,7 +1,13 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import type { FilterDefinition } from '../types/filter';
 import { palette } from '../theme/colors';
 
@@ -13,6 +19,115 @@ interface FilterGridProps {
   onToggleFavorite: (filterId: string) => void;
 }
 
+const IOS_CARD_SPRING = {
+  damping: 20,
+  stiffness: 230,
+  mass: 0.84,
+  velocity: 2.1,
+};
+
+interface FilterCardProps {
+  cardWidth: number;
+  favorite: boolean;
+  filter: FilterDefinition;
+  onSelect: (filterId: string) => void;
+  onToggleFavorite: (filterId: string) => void;
+  selected: boolean;
+}
+
+function FilterCard({
+  cardWidth,
+  favorite,
+  filter,
+  onSelect,
+  onToggleFavorite,
+  selected,
+}: FilterCardProps) {
+  const { t } = useTranslation();
+  const progress = useSharedValue(selected ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withSpring(selected ? 1 : 0, IOS_CARD_SPRING);
+  }, [progress, selected]);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [palette.panel, '#16273c'],
+    ),
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [palette.border, palette.accent],
+    ),
+    shadowColor: palette.accent,
+    shadowOpacity: progress.value * 0.16,
+    shadowRadius: 14 * progress.value,
+    shadowOffset: {
+      width: 0,
+      height: 8 * progress.value,
+    },
+    transform: [
+      { scale: 1 + progress.value * 0.026 },
+      { translateY: -2.5 * progress.value },
+    ],
+  }));
+
+  const nameStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      progress.value,
+      [0, 1],
+      [palette.textPrimary, '#f5f9ff'],
+    ),
+  }));
+
+  const metaStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      progress.value,
+      [0, 1],
+      [palette.textSecondary, '#a9c9ec'],
+    ),
+  }));
+
+  return (
+    <Pressable
+      accessibilityLabel={filter.name}
+      accessibilityRole="button"
+      onPress={() => onSelect(filter.id)}
+      style={{ width: cardWidth }}
+    >
+      <Animated.View style={[styles.card, cardStyle]}>
+        <View style={styles.header}>
+          <Animated.Text style={[styles.name, nameStyle]}>{filter.name}</Animated.Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('editor.favorite')}
+            hitSlop={8}
+            onPress={event => {
+              event.stopPropagation();
+              onToggleFavorite(filter.id);
+            }}
+            style={styles.favoriteButton}
+          >
+            <Text
+              style={[
+                styles.heart,
+                favorite ? styles.heartActive : styles.heartInactive,
+              ]}
+            >
+              {favorite ? '★' : '☆'}
+            </Text>
+          </Pressable>
+        </View>
+        <Animated.Text style={[styles.meta, metaStyle]}>
+          {filter.operations.length} ops · #{filter.indexInCategory + 1}
+        </Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export function FilterGrid({
   filters,
   selectedFilterId,
@@ -20,7 +135,6 @@ export function FilterGrid({
   onSelect,
   onToggleFavorite,
 }: FilterGridProps) {
-  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const pageWidth = width - 32;
   const cardWidth = (pageWidth - 8) / 2;
@@ -55,45 +169,15 @@ export function FilterGrid({
                   const favorite = favorites.includes(filter.id);
 
                   return (
-                    <Pressable
+                    <FilterCard
+                      cardWidth={cardWidth}
+                      favorite={favorite}
                       key={filter.id}
-                      onPress={() => onSelect(filter.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={filter.name}
-                      style={[
-                        styles.card,
-                        {
-                          width: cardWidth,
-                        },
-                        selected ? styles.cardSelected : undefined,
-                      ]}
-                    >
-                      <View style={styles.header}>
-                        <Text style={styles.name}>{filter.name}</Text>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={t('editor.favorite')}
-                          hitSlop={8}
-                          onPress={event => {
-                            event.stopPropagation();
-                            onToggleFavorite(filter.id);
-                          }}
-                          style={styles.favoriteButton}
-                        >
-                          <Text
-                            style={[
-                              styles.heart,
-                              favorite ? styles.heartActive : styles.heartInactive,
-                            ]}
-                          >
-                            {favorite ? '★' : '☆'}
-                          </Text>
-                        </Pressable>
-                      </View>
-                      <Text style={styles.meta}>
-                        {filter.operations.length} ops · #{filter.indexInCategory + 1}
-                      </Text>
-                    </Pressable>
+                      filter={filter}
+                      onSelect={onSelect}
+                      onToggleFavorite={onToggleFavorite}
+                      selected={selected}
+                    />
                   );
                 })}
                 {row.length === 1 ? <View style={{ width: cardWidth }} /> : null}
@@ -127,10 +211,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.panel,
     paddingHorizontal: 12,
     paddingVertical: 10,
-  },
-  cardSelected: {
-    borderColor: palette.accent,
-    backgroundColor: '#16273c',
   },
   header: {
     flexDirection: 'row',

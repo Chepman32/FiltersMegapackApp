@@ -1,4 +1,11 @@
-import { startTransition, useDeferredValue, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -10,6 +17,11 @@ import Slider from '@react-native-community/slider';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 import { useTranslation } from 'react-i18next';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
@@ -57,6 +69,7 @@ export function EditorScreen() {
   const [busy, setBusy] = useState(false);
   const intensityStartRef = useRef<FilterStack | null>(null);
   const microStartRef = useRef<FilterStack | null>(null);
+  const categorySwitchProgress = useSharedValue(1);
 
   useRenderPreview({
     asset: currentAsset,
@@ -102,6 +115,24 @@ export function EditorScreen() {
     filterStack.intensity !== 1 ||
     filterStack.parameterValues.micro !== 0.5 ||
     filterStack.parameterValues.strength !== 1;
+
+  useEffect(() => {
+    categorySwitchProgress.value = 0.84;
+    categorySwitchProgress.value = withSpring(1, {
+      damping: 18,
+      stiffness: 220,
+      mass: 0.85,
+      velocity: 2.3,
+    });
+  }, [categorySwitchProgress, selectedCategoryId]);
+
+  const gridMotionStyle = useAnimatedStyle(() => ({
+    opacity: 0.72 + categorySwitchProgress.value * 0.28,
+    transform: [
+      { translateX: (1 - categorySwitchProgress.value) * 24 },
+      { scale: 0.965 + categorySwitchProgress.value * 0.035 },
+    ],
+  }));
 
   const snapshotFilterStack = (stack: FilterStack): FilterStack => ({
     ...stack,
@@ -290,7 +321,7 @@ export function EditorScreen() {
           </Text>
           {statusLabel ? <Text style={styles.statusText}>{statusLabel}</Text> : null}
         </View>
-        <View style={styles.gridContainer}>
+        <Animated.View style={[styles.gridContainer, gridMotionStyle]}>
           <FilterGrid
             favorites={favorites}
             filters={deferredFilters}
@@ -300,7 +331,7 @@ export function EditorScreen() {
             }}
             onToggleFavorite={toggleFavorite}
           />
-        </View>
+        </Animated.View>
       </View>
     </ScreenView>
   );

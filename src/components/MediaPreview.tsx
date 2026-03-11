@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Image,
   Pressable,
@@ -10,6 +10,11 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import type { MediaAssetRef } from '../types/media';
 import { palette } from '../theme/colors';
 
@@ -21,6 +26,13 @@ interface MediaPreviewProps {
   overlayActions?: ReactNode;
 }
 
+const IOS_OVERLAY_SPRING = {
+  damping: 20,
+  stiffness: 250,
+  mass: 0.82,
+  velocity: 2.6,
+};
+
 export function MediaPreview({
   asset,
   previewUri,
@@ -30,11 +42,24 @@ export function MediaPreview({
 }: MediaPreviewProps) {
   const { t } = useTranslation();
   const [showOriginal, setShowOriginal] = useState(false);
+  const compareVisibility = useSharedValue(1);
 
   const imageSource = useMemo<ImageSourcePropType | null>(() => {
     const uri = showOriginal ? originalUri : previewUri ?? originalUri;
     return uri ? { uri } : null;
   }, [originalUri, previewUri, showOriginal]);
+
+  useEffect(() => {
+    compareVisibility.value = withSpring(showOriginal ? 0 : 1, IOS_OVERLAY_SPRING);
+  }, [compareVisibility, showOriginal]);
+
+  const compareStyle = useAnimatedStyle(() => ({
+    opacity: compareVisibility.value,
+    transform: [
+      { translateY: -10 * (1 - compareVisibility.value) },
+      { scale: 0.88 + compareVisibility.value * 0.12 },
+    ],
+  }));
 
   if (!asset || !imageSource) {
     return (
@@ -65,12 +90,12 @@ export function MediaPreview({
       </Pressable>
       <View pointerEvents="box-none" style={styles.overlayContainer}>
         <View style={styles.actionRow}>{overlayActions}</View>
-        {!showOriginal || asset.kind !== 'photo' ? (
-          <View style={styles.overlayTop}>
-            {!showOriginal ? <Text style={styles.compare}>{t('editor.compare')}</Text> : null}
-            {renderMediaBadge()}
-          </View>
-        ) : null}
+        <View style={styles.overlayTop}>
+          <Animated.View style={compareStyle}>
+            <Text style={styles.compare}>{t('editor.compare')}</Text>
+          </Animated.View>
+          {renderMediaBadge()}
+        </View>
       </View>
     </View>
   );
