@@ -1,10 +1,10 @@
 import type {
   FilterCategory,
-  FilterCategoryId,
   FilterDefinition,
   FilterOperation,
   FilterOperationType,
   FilterParameter,
+  StaticFilterCategoryId,
 } from '../types/filter';
 import { seededRange } from '../utils/seeded';
 
@@ -18,7 +18,7 @@ interface OperationBlueprint {
 }
 
 interface CategoryTemplate {
-  id: FilterCategoryId;
+  id: StaticFilterCategoryId;
   titleKey: string;
   subtitleKey: string;
   color: string;
@@ -478,7 +478,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   },
 ];
 
-function buildParameterSet(categoryId: FilterCategoryId): FilterParameter[] {
+function buildParameterSet(categoryId: StaticFilterCategoryId): FilterParameter[] {
   return [
     {
       id: 'strength',
@@ -558,7 +558,7 @@ export const FILTERS_BY_CATEGORY = FILTER_CATEGORIES.reduce(
     acc[category.id] = FILTERS.filter(filter => filter.categoryId === category.id);
     return acc;
   },
-  {} as Record<FilterCategoryId, FilterDefinition[]>,
+  {} as Record<StaticFilterCategoryId, FilterDefinition[]>,
 );
 
 export function getFilterById(filterId: string): FilterDefinition {

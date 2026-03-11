@@ -25,6 +25,7 @@ export const translations = {
       cta: 'Start Editing',
     },
     categories: {
+      favorites: { title: 'Favorites', subtitle: 'Saved looks you starred' },
       cinematic: { title: 'Cinematic', subtitle: 'Filmic stories and depth' },
       vintage: { title: 'Vintage', subtitle: 'Aged tones and nostalgia' },
       film: { title: 'Film', subtitle: 'Emulsion-inspired mood' },
@@ -112,6 +113,7 @@ export const translations = {
       cta: 'Начать редактирование',
     },
     categories: {
+      favorites: { title: 'Избранное', subtitle: 'Фильтры, отмеченные звездой' },
       cinematic: { title: 'Кино', subtitle: 'Кинематографичная глубина' },
       vintage: { title: 'Винтаж', subtitle: 'Ностальгичные тона' },
       film: { title: 'Пленка', subtitle: 'Настроение фотопленки' },

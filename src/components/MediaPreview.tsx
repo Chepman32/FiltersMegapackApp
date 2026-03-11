@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Image,
   Pressable,
@@ -18,6 +18,7 @@ interface MediaPreviewProps {
   previewUri: string | null;
   originalUri: string | null;
   style?: StyleProp<ViewStyle>;
+  overlayActions?: ReactNode;
 }
 
 export function MediaPreview({
@@ -25,6 +26,7 @@ export function MediaPreview({
   previewUri,
   originalUri,
   style,
+  overlayActions,
 }: MediaPreviewProps) {
   const { t } = useTranslation();
   const [showOriginal, setShowOriginal] = useState(false);
@@ -51,19 +53,26 @@ export function MediaPreview({
   };
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t('editor.compare')}
-      onPressIn={() => setShowOriginal(true)}
-      onPressOut={() => setShowOriginal(false)}
-      style={[styles.wrapper, style]}
-    >
-      <Image resizeMode="cover" source={imageSource} style={styles.image} />
-      <View style={styles.overlayTop}>
-        <Text style={styles.compare}>{t('editor.compare')}</Text>
-        {renderMediaBadge()}
+    <View style={[styles.wrapper, style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('editor.compare')}
+        onPressIn={() => setShowOriginal(true)}
+        onPressOut={() => setShowOriginal(false)}
+        style={styles.imagePressable}
+      >
+        <Image resizeMode="cover" source={imageSource} style={styles.image} />
+      </Pressable>
+      <View pointerEvents="box-none" style={styles.overlayContainer}>
+        <View style={styles.actionRow}>{overlayActions}</View>
+        {!showOriginal || asset.kind !== 'photo' ? (
+          <View style={styles.overlayTop}>
+            {!showOriginal ? <Text style={styles.compare}>{t('editor.compare')}</Text> : null}
+            {renderMediaBadge()}
+          </View>
+        ) : null}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -82,11 +91,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  imagePressable: {
+    flex: 1,
+  },
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   overlayTop: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
+    marginTop: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

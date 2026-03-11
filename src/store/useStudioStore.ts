@@ -107,6 +107,9 @@ function categoryForFilterId(
   filterId: string,
   fallback: FilterCategoryId,
 ): FilterCategoryId {
+  if (fallback === 'favorites') {
+    return 'favorites';
+  }
   if (filterId === NONE_FILTER_ID) {
     return fallback;
   }
@@ -294,7 +297,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         ? state.favorites.filter(id => id !== filterId)
         : [filterId, ...state.favorites];
       writeJSON(FAVORITES_KEY, favorites);
-      return { favorites };
+      return {
+        favorites,
+        selectedCategoryId:
+          state.selectedCategoryId === 'favorites' && favorites.length === 0
+            ? categoryForFilterId(state.filterStack.filterId, 'cinematic')
+            : state.selectedCategoryId,
+      };
     });
   },
 

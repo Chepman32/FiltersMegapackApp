@@ -1,4 +1,5 @@
 export type FilterCategoryId =
+  | 'favorites'
   | 'cinematic'
   | 'vintage'
   | 'film'
@@ -11,6 +12,8 @@ export type FilterCategoryId =
   | 'colorshift'
   | 'texture'
   | 'motion';
+
+export type StaticFilterCategoryId = Exclude<FilterCategoryId, 'favorites'>;
 
 export type FilterOperationType =
   | 'exposure'
@@ -62,7 +65,7 @@ export interface FilterOperation {
 export interface FilterDefinition {
   id: string;
   name: string;
-  categoryId: FilterCategoryId;
+  categoryId: StaticFilterCategoryId;
   indexInCategory: number;
   operations: FilterOperation[];
   parameters: FilterParameter[];

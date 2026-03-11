@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FILTER_CATEGORIES } from '../filters/filterCatalog';
@@ -5,15 +6,41 @@ import type { FilterCategoryId } from '../types/filter';
 import { palette } from '../theme/colors';
 
 interface FilterCategoryBarProps {
+  favoritesCount: number;
   selectedId: FilterCategoryId;
   onSelect: (id: FilterCategoryId) => void;
 }
 
 export function FilterCategoryBar({
+  favoritesCount,
   selectedId,
   onSelect,
 }: FilterCategoryBarProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const categories = useMemo(
+    () =>
+      favoritesCount > 0
+        ? [
+            {
+              id: 'favorites' as const,
+              titleKey: 'categories.favorites.title',
+              subtitleKey: 'categories.favorites.subtitle',
+              color: palette.warning,
+            },
+            ...FILTER_CATEGORIES,
+          ]
+        : FILTER_CATEGORIES,
+    [favoritesCount],
+  );
+
+  const resolveCategoryTitle = (category: (typeof categories)[number]) => {
+    if (category.id === 'favorites') {
+      return t(category.titleKey, {
+        defaultValue: i18n.language.startsWith('ru') ? 'Избранное' : 'Favorites',
+      });
+    }
+    return t(category.titleKey);
+  };
 
   return (
     <ScrollView
@@ -22,14 +49,14 @@ export function FilterCategoryBar({
       contentContainerStyle={styles.container}
       showsHorizontalScrollIndicator={false}
     >
-      {FILTER_CATEGORIES.map(category => {
+      {categories.map(category => {
         const selected = category.id === selectedId;
         return (
           <Pressable
             key={category.id}
             onPress={() => onSelect(category.id)}
             accessibilityRole="button"
-            accessibilityLabel={t(category.titleKey)}
+            accessibilityLabel={resolveCategoryTitle(category)}
             style={[
               styles.pill,
               selected ? styles.pillSelected : undefined,
@@ -47,7 +74,7 @@ export function FilterCategoryBar({
               ]}
             />
             <Text style={[styles.label, selected ? styles.labelSelected : undefined]}>
-              {t(category.titleKey)}
+              {resolveCategoryTitle(category)}
             </Text>
           </Pressable>
         );

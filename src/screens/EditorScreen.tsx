@@ -10,7 +10,7 @@ import Slider from '@react-native-community/slider';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 import { useTranslation } from 'react-i18next';
-import { FILTERS_BY_CATEGORY } from '../filters/filterCatalog';
+import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
   NONE_FILTER_ID,
@@ -70,8 +70,14 @@ export function EditorScreen() {
   });
 
   const filtersForCategory = useMemo(
-    () => FILTERS_BY_CATEGORY[selectedCategoryId],
-    [selectedCategoryId],
+    () =>
+      selectedCategoryId === 'favorites'
+        ? favorites.flatMap(filterId => {
+            const filter = FILTERS_BY_ID[filterId];
+            return filter ? [filter] : [];
+          })
+        : (FILTERS_BY_CATEGORY[selectedCategoryId] ?? []),
+    [favorites, selectedCategoryId],
   );
   const deferredFilters = useDeferredValue(filtersForCategory);
   const activeFilter = resolveFilterStack(filterStack);
@@ -146,65 +152,69 @@ export function EditorScreen() {
     resetFilterStack();
   };
 
+  const overlayActions = currentAsset ? (
+    <>
+      <View style={styles.historyGroup}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={undoLabel}
+          disabled={!canUndo || busy}
+          onPress={undoFilterChange}
+          style={[
+            styles.headerButton,
+            !canUndo || busy ? styles.headerButtonDisabled : undefined,
+          ]}
+        >
+          <Text style={styles.headerButtonLabel}>{undoLabel}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={redoLabel}
+          disabled={!canRedo || busy}
+          onPress={redoFilterChange}
+          style={[
+            styles.headerButton,
+            !canRedo || busy ? styles.headerButtonDisabled : undefined,
+          ]}
+        >
+          <Text style={styles.headerButtonLabel}>{redoLabel}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={resetLabel}
+          disabled={!canReset || busy}
+          onPress={handleReset}
+          style={[
+            styles.headerButton,
+            !canReset || busy ? styles.headerButtonDisabled : undefined,
+          ]}
+        >
+          <Text style={styles.headerButtonLabel}>{resetLabel}</Text>
+        </Pressable>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={shareLabel}
+        disabled={!currentAsset || busy}
+        onPress={handleShare}
+        style={[
+          styles.shareButton,
+          !currentAsset || busy ? styles.headerButtonDisabled : undefined,
+        ]}
+      >
+        <Text style={styles.shareButtonLabel}>
+          {busy ? t('common.loading') : shareLabel}
+        </Text>
+      </Pressable>
+    </>
+  ) : null;
+
   return (
     <ScreenView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.historyGroup}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={undoLabel}
-              disabled={!canUndo || busy}
-              onPress={undoFilterChange}
-              style={[
-                styles.headerButton,
-                !canUndo || busy ? styles.headerButtonDisabled : undefined,
-              ]}
-            >
-              <Text style={styles.headerButtonLabel}>{undoLabel}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={redoLabel}
-              disabled={!canRedo || busy}
-              onPress={redoFilterChange}
-              style={[
-                styles.headerButton,
-                !canRedo || busy ? styles.headerButtonDisabled : undefined,
-              ]}
-            >
-              <Text style={styles.headerButtonLabel}>{redoLabel}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={resetLabel}
-              disabled={!canReset || busy}
-              onPress={handleReset}
-              style={[
-                styles.headerButton,
-                !canReset || busy ? styles.headerButtonDisabled : undefined,
-              ]}
-            >
-              <Text style={styles.headerButtonLabel}>{resetLabel}</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={shareLabel}
-            disabled={!currentAsset || busy}
-            onPress={handleShare}
-            style={[
-              styles.shareButton,
-              !currentAsset || busy ? styles.headerButtonDisabled : undefined,
-            ]}
-          >
-            <Text style={styles.shareButtonLabel}>
-              {busy ? t('common.loading') : shareLabel}
-            </Text>
-          </Pressable>
-        </View>
         <MediaPreview
           asset={currentAsset}
+          overlayActions={overlayActions}
           previewUri={previewUri}
           originalUri={currentAsset?.uri ?? null}
           style={[
@@ -269,7 +279,11 @@ export function EditorScreen() {
           style={styles.slider}
         />
 
-        <FilterCategoryBar selectedId={selectedCategoryId} onSelect={setCategory} />
+        <FilterCategoryBar
+          favoritesCount={favorites.length}
+          selectedId={selectedCategoryId}
+          onSelect={setCategory}
+        />
         <View style={styles.countRow}>
           <Text style={styles.countText}>
             {deferredFilters.length} / {filtersForCategory.length} filters
@@ -301,24 +315,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 8,
   },
-  header: {
-    marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
   historyGroup: {
     flexDirection: 'row',
     gap: 8,
+    flexShrink: 1,
   },
   headerButton: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.panel,
+    backgroundColor: 'rgba(13, 20, 36, 0.88)',
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -335,6 +341,8 @@ const styles = StyleSheet.create({
     backgroundColor: palette.accent,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    minWidth: 88,
+    alignItems: 'center',
   },
   shareButtonLabel: {
     color: '#041019',

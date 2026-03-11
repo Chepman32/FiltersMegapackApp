@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useTranslation } from 'react-i18next';
 import type { FilterDefinition } from '../types/filter';
 import { palette } from '../theme/colors';
 
@@ -19,6 +20,7 @@ export function FilterGrid({
   onSelect,
   onToggleFavorite,
 }: FilterGridProps) {
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const pageWidth = width - 32;
   const cardWidth = (pageWidth - 8) / 2;
@@ -56,7 +58,6 @@ export function FilterGrid({
                     <Pressable
                       key={filter.id}
                       onPress={() => onSelect(filter.id)}
-                      onLongPress={() => onToggleFavorite(filter.id)}
                       accessibilityRole="button"
                       accessibilityLabel={filter.name}
                       style={[
@@ -69,7 +70,25 @@ export function FilterGrid({
                     >
                       <View style={styles.header}>
                         <Text style={styles.name}>{filter.name}</Text>
-                        <Text style={styles.heart}>{favorite ? '★' : '☆'}</Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={t('editor.favorite')}
+                          hitSlop={8}
+                          onPress={event => {
+                            event.stopPropagation();
+                            onToggleFavorite(filter.id);
+                          }}
+                          style={styles.favoriteButton}
+                        >
+                          <Text
+                            style={[
+                              styles.heart,
+                              favorite ? styles.heartActive : styles.heartInactive,
+                            ]}
+                          >
+                            {favorite ? '★' : '☆'}
+                          </Text>
+                        </Pressable>
                       </View>
                       <Text style={styles.meta}>
                         {filter.operations.length} ops · #{filter.indexInCategory + 1}
@@ -126,8 +145,17 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   heart: {
-    color: palette.warning,
     fontSize: 16,
+  },
+  heartActive: {
+    color: palette.warning,
+  },
+  heartInactive: {
+    color: palette.textSecondary,
+  },
+  favoriteButton: {
+    paddingLeft: 4,
+    paddingVertical: 2,
   },
   meta: {
     marginTop: 6,
