@@ -2,6 +2,23 @@ import 'react-native-gesture-handler/jestSetup';
 
 jest.mock('react-native-reanimated', () => {
   const { Image, ScrollView, Text, View } = require('react-native');
+  const makeTransition = () => ({
+    springify() {
+      return this;
+    },
+    damping() {
+      return this;
+    },
+    stiffness() {
+      return this;
+    },
+    mass() {
+      return this;
+    },
+    duration() {
+      return this;
+    },
+  });
 
   return {
     __esModule: true,
@@ -16,6 +33,9 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedStyle: (updater: () => object) => updater(),
     useSharedValue: (value: unknown) => ({ value }),
     withSpring: (value: unknown) => value,
+    LinearTransition: makeTransition(),
+    FadeIn: makeTransition(),
+    FadeOut: makeTransition(),
   };
 });
 jest.mock('@shopify/flash-list', () => {

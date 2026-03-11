@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   ActionSheetIOS,
   Alert,
-  Animated,
+  Animated as NativeAnimated,
   Image,
   Modal,
   Platform,
@@ -17,6 +17,14 @@ import { pickSingle, isCancel as isDocumentPickerCancel, types } from 'react-nat
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import Reanimated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import type { HomeStackParamList } from '../navigation/types';
 import { IOSContextMenu, type IOSContextMenuAction } from '../components/IOSContextMenu';
 import { ScreenView } from '../components/Screen';
@@ -31,6 +39,112 @@ type HomeNav = NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
 type SectionState = Record<string, boolean>;
 
 const SOURCE_OPTIONS = ['gallery', 'files', 'camera'] as const;
+const ACCORDION_LAYOUT = LinearTransition.springify()
+  .damping(18)
+  .stiffness(210)
+  .mass(0.92);
+const CHEVRON_SPRING = {
+  damping: 18,
+  stiffness: 220,
+  mass: 0.86,
+  velocity: 2.6,
+};
+
+interface AccordionSectionProps {
+  actions?: IOSContextMenuAction[];
+  count: number;
+  emptyLabel: string;
+  isExpanded: boolean;
+  onHeaderAction?: (actionId: string) => void;
+  onToggle: () => void;
+  projects: ProjectDocument[];
+  renderProjectCard: (project: ProjectDocument) => ReactElement;
+  title: string;
+}
+
+function AccordionSection({
+  actions,
+  count,
+  emptyLabel,
+  isExpanded,
+  onHeaderAction,
+  onToggle,
+  projects,
+  renderProjectCard,
+  title,
+}: AccordionSectionProps) {
+  const { t } = useTranslation();
+  const chevronProgress = useSharedValue(isExpanded ? 1 : 0);
+
+  useEffect(() => {
+    chevronProgress.value = withSpring(isExpanded ? 1 : 0, CHEVRON_SPRING);
+  }, [chevronProgress, isExpanded]);
+
+  const chevronStyle = useAnimatedStyle(() => ({
+    opacity: 0.72 + chevronProgress.value * 0.28,
+    transform: [
+      { rotate: `${chevronProgress.value * 90}deg` },
+      { scale: 0.94 + chevronProgress.value * 0.08 },
+    ],
+  }));
+
+  const headerContent = (
+    <View style={styles.sectionHeader}>
+      <View>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={styles.sectionMeta}>
+          {t('home.sections.projectCount', { count })}
+        </Text>
+      </View>
+      <Reanimated.Text style={[styles.sectionChevron, chevronStyle]}>
+        ›
+      </Reanimated.Text>
+    </View>
+  );
+
+  return (
+    <Reanimated.View layout={ACCORDION_LAYOUT} style={styles.sectionCard}>
+      {actions && onHeaderAction ? (
+        <IOSContextMenu
+          actions={actions}
+          onPress={onToggle}
+          onPressAction={onHeaderAction}
+          style={styles.sectionHeaderShell}
+        >
+          {headerContent}
+        </IOSContextMenu>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
+          onPress={onToggle}
+          style={styles.sectionHeaderShell}
+        >
+          {headerContent}
+        </Pressable>
+      )}
+
+      {isExpanded ? (
+        <Reanimated.View
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(130)}
+          layout={ACCORDION_LAYOUT}
+          style={styles.sectionBody}
+        >
+          {projects.length > 0 ? (
+            <Reanimated.View layout={ACCORDION_LAYOUT} style={styles.projectGrid}>
+              {projects.map(renderProjectCard)}
+            </Reanimated.View>
+          ) : (
+            <Reanimated.View layout={ACCORDION_LAYOUT} style={styles.emptySection}>
+              <Text style={styles.emptySectionText}>{emptyLabel}</Text>
+            </Reanimated.View>
+          )}
+        </Reanimated.View>
+      ) : null}
+    </Reanimated.View>
+  );
+}
 
 export function HomeScreen() {
   const { t } = useTranslation();
@@ -57,7 +171,7 @@ export function HomeScreen() {
     all: true,
     trash: false,
   });
-  const sheetProgress = useRef(new Animated.Value(0)).current;
+  const sheetProgress = useRef(new NativeAnimated.Value(0)).current;
 
   useEffect(() => {
     refreshProjects();
@@ -88,7 +202,7 @@ export function HomeScreen() {
   const openSourceSheet = () => {
     setSourceSheetMounted(true);
     sheetProgress.setValue(0);
-    Animated.spring(sheetProgress, {
+    NativeAnimated.spring(sheetProgress, {
       toValue: 1,
       friction: 8,
       tension: 90,
@@ -97,7 +211,7 @@ export function HomeScreen() {
   };
 
   const closeSourceSheet = (callback?: () => void) => {
-    Animated.timing(sheetProgress, {
+    NativeAnimated.timing(sheetProgress, {
       toValue: 0,
       duration: 180,
       useNativeDriver: true,
@@ -444,22 +558,22 @@ export function HomeScreen() {
 
   const renderProjectCard = (project: ProjectDocument) => (
     <IOSContextMenu
+      accessibilityLabel={project.title}
+      accessibilityRole="button"
       actions={projectMenuActions(project)}
       key={project.id}
+      onPress={project.isTrashed ? undefined : () => handleOpenProject(project)}
       onPressAction={actionId => handleProjectMenuAction(project, actionId)}
       style={styles.projectCardShell}
     >
-      <Pressable
-        accessibilityRole="button"
-        disabled={project.isTrashed}
-        onPress={() => handleOpenProject(project)}
-        style={({ pressed }) => [
+      <View
+        collapsable={false}
+        style={[
           styles.projectCard,
           project.isTrashed ? styles.projectCardTrashed : undefined,
-          pressed ? styles.projectCardPressed : undefined,
         ]}
       >
-        <View style={styles.projectPreviewWrap}>
+        <View collapsable={false} style={styles.projectPreviewWrap}>
           {project.coverUri ? (
             <Image source={{ uri: project.coverUri }} style={styles.projectPreview} />
           ) : (
@@ -488,68 +602,9 @@ export function HomeScreen() {
             {new Date(project.updatedAt).toLocaleDateString()}
           </Text>
         </View>
-      </Pressable>
+      </View>
     </IOSContextMenu>
   );
-
-  const renderAccordionSection = ({
-    actions,
-    count,
-    emptyLabel,
-    isExpanded,
-    onHeaderAction,
-    onToggle,
-    projects,
-    sectionKey,
-    title,
-  }: {
-    actions?: IOSContextMenuAction[];
-    count: number;
-    emptyLabel: string;
-    isExpanded: boolean;
-    onHeaderAction?: (actionId: string) => void;
-    onToggle: () => void;
-    projects: ProjectDocument[];
-    sectionKey: string;
-    title: string;
-  }) => {
-    const header = (
-      <Pressable onPress={onToggle} style={styles.sectionHeader}>
-        <View>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          <Text style={styles.sectionMeta}>
-            {t('home.sections.projectCount', { count })}
-          </Text>
-        </View>
-        <Text style={styles.sectionChevron}>{isExpanded ? '−' : '+'}</Text>
-      </Pressable>
-    );
-
-    return (
-      <View key={sectionKey} style={styles.sectionCard}>
-        {actions && onHeaderAction ? (
-          <IOSContextMenu
-            actions={actions}
-            onPressAction={onHeaderAction}
-            style={styles.sectionHeaderShell}
-          >
-            {header}
-          </IOSContextMenu>
-        ) : (
-          header
-        )}
-        {isExpanded ? (
-          projects.length > 0 ? (
-            <View style={styles.projectGrid}>{projects.map(renderProjectCard)}</View>
-          ) : (
-            <View style={styles.emptySection}>
-              <Text style={styles.emptySectionText}>{emptyLabel}</Text>
-            </View>
-          )
-        ) : null}
-      </View>
-    );
-  };
 
   const overlayOpacity = sheetProgress.interpolate({
     inputRange: [0, 1],
@@ -585,44 +640,49 @@ export function HomeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scrollView}>
-        {renderAccordionSection({
-          count: homeProjects.allProjects.length,
-          emptyLabel: t('home.empty.allProjects'),
-          isExpanded: expandedSections.all ?? true,
-          onToggle: () => toggleSection('all'),
-          projects: homeProjects.allProjects,
-          sectionKey: 'all-projects',
-          title: t('home.sections.allProjects'),
-        })}
+        <AccordionSection
+          count={homeProjects.allProjects.length}
+          emptyLabel={t('home.empty.allProjects')}
+          isExpanded={expandedSections.all ?? true}
+          onToggle={() => toggleSection('all')}
+          projects={homeProjects.allProjects}
+          renderProjectCard={renderProjectCard}
+          title={t('home.sections.allProjects')}
+        />
         {homeProjects.foldersWithProjects.map(({ folder, projects }) =>
-          renderAccordionSection({
-            actions: folderMenuActions,
-            count: projects.length,
-            emptyLabel: t('home.empty.folder'),
-            isExpanded: expandedSections[folder.id] ?? true,
-            onHeaderAction: actionId => handleFolderMenuAction(folder, actionId),
-            onToggle: () => toggleSection(folder.id),
-            projects,
-            sectionKey: folder.id,
-            title: folder.name,
-          }),
+          (
+            <AccordionSection
+              actions={folderMenuActions}
+              count={projects.length}
+              emptyLabel={t('home.empty.folder')}
+              isExpanded={expandedSections[folder.id] ?? true}
+              key={folder.id}
+              onHeaderAction={actionId => handleFolderMenuAction(folder, actionId)}
+              onToggle={() => toggleSection(folder.id)}
+              projects={projects}
+              renderProjectCard={renderProjectCard}
+              title={folder.name}
+            />
+          ),
         )}
         {homeProjects.trashProjects.length > 0
-          ? renderAccordionSection({
-              actions: trashMenuActions,
-              count: homeProjects.trashProjects.length,
-              emptyLabel: t('home.empty.trash'),
-              isExpanded: expandedSections.trash ?? false,
-              onHeaderAction: actionId => {
+          ? (
+            <AccordionSection
+              actions={trashMenuActions}
+              count={homeProjects.trashProjects.length}
+              emptyLabel={t('home.empty.trash')}
+              isExpanded={expandedSections.trash ?? false}
+              onHeaderAction={actionId => {
                 if (actionId === 'clean-trash') {
                   confirmTrashCleanup();
                 }
-              },
-              onToggle: () => toggleSection('trash'),
-              projects: homeProjects.trashProjects,
-              sectionKey: 'trash',
-              title: t('home.sections.trash'),
-            })
+              }}
+              onToggle={() => toggleSection('trash')}
+              projects={homeProjects.trashProjects}
+              renderProjectCard={renderProjectCard}
+              title={t('home.sections.trash')}
+            />
+          )
           : null}
       </ScrollView>
 
@@ -645,10 +705,10 @@ export function HomeScreen() {
         visible={sourceSheetMounted}
       >
         <View style={styles.modalRoot}>
-          <Animated.View style={[styles.modalBackdrop, { opacity: overlayOpacity }]}>
+          <NativeAnimated.View style={[styles.modalBackdrop, { opacity: overlayOpacity }]}>
             <Pressable onPress={() => closeSourceSheet()} style={StyleSheet.absoluteFill} />
-          </Animated.View>
-          <Animated.View
+          </NativeAnimated.View>
+          <NativeAnimated.View
             style={[
               styles.modalSheet,
               {
@@ -687,7 +747,7 @@ export function HomeScreen() {
             <Pressable onPress={() => closeSourceSheet()} style={styles.modalCloseButton}>
               <Text style={styles.modalCloseButtonLabel}>{t('common.cancel')}</Text>
             </Pressable>
-          </Animated.View>
+          </NativeAnimated.View>
         </View>
       </Modal>
     </ScreenView>
@@ -780,6 +840,9 @@ const styles = StyleSheet.create({
   sectionHeaderShell: {
     width: '100%',
   },
+  sectionBody: {
+    overflow: 'hidden',
+  },
   sectionHeader: {
     paddingHorizontal: 18,
     paddingVertical: 16,
@@ -799,8 +862,9 @@ const styles = StyleSheet.create({
   },
   sectionChevron: {
     color: '#d7e0fa',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '300',
+    lineHeight: 28,
   },
   projectGrid: {
     paddingHorizontal: 12,
@@ -818,10 +882,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#121828',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
-  },
-  projectCardPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.99 }],
   },
   projectCardTrashed: {
     opacity: 0.78,
