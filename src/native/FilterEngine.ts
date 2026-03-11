@@ -76,7 +76,7 @@ export function buildRenderOptions(
   const filter = resolveFilterStack(stack);
   return {
     stack,
-    operations: filter.operations,
+    operations: filter?.operations ?? [],
     kind,
     maxDimension: kind === 'photo' ? 2560 : 1920,
     quality: 0.95,

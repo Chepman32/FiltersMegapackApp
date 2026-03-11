@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList, StudioTabsParamList } from './types';
+import { TabBarIcon } from '../components/TabBarIcon';
 import { CameraScreen } from '../screens/CameraScreen';
 import { EditorScreen } from '../screens/EditorScreen';
 import { CollageScreen } from '../screens/CollageScreen';
@@ -15,6 +16,32 @@ import { palette } from '../theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<StudioTabsParamList>();
+
+const TAB_ICON_KIND = {
+  CameraTab: 'camera',
+  EditorTab: 'editor',
+  CollageTab: 'collage',
+  ProjectsTab: 'projects',
+  SettingsTab: 'settings',
+} as const;
+
+const TAB_ICON_RENDERERS = {
+  CameraTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.CameraTab} />
+  ),
+  EditorTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.EditorTab} />
+  ),
+  CollageTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.CollageTab} />
+  ),
+  ProjectsTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.ProjectsTab} />
+  ),
+  SettingsTab: ({ color, focused }: { color: string; focused: boolean }) => (
+    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.SettingsTab} />
+  ),
+};
 
 function StudioTabs() {
   const { t } = useTranslation();
@@ -32,18 +59,26 @@ function StudioTabs() {
 
   return (
     <Tabs.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: palette.textPrimary,
         tabBarInactiveTintColor: palette.textSecondary,
+        tabBarIcon: TAB_ICON_RENDERERS[route.name],
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        tabBarItemStyle: {
+          paddingTop: 4,
+        },
         tabBarStyle: {
           backgroundColor: '#111522',
           borderTopColor: palette.border,
-          height: 58 + Math.max(insets.bottom, 8),
+          height: 68 + Math.max(insets.bottom, 8),
           paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
+          paddingTop: 6,
         },
-      }}
+      })}
     >
       <Tabs.Screen
         component={CameraScreen}

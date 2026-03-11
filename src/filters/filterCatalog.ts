@@ -513,11 +513,7 @@ function buildOperations(
 ): FilterOperation[] {
   const operations: FilterOperation[] = [];
   category.blueprints.forEach((blueprint, blueprintIndex) => {
-    if (
-      blueprint.every !== undefined &&
-      (index + 1) % blueprint.every !== 0 &&
-      blueprint.type !== 'lightLeak'
-    ) {
+    if (blueprint.every !== undefined && (index + 1) % blueprint.every !== 0) {
       return;
     }
     const seed = category.seed * 100 + index * 10 + blueprintIndex;
@@ -568,4 +564,3 @@ export const FILTERS_BY_CATEGORY = FILTER_CATEGORIES.reduce(
 export function getFilterById(filterId: string): FilterDefinition {
   return FILTERS_BY_ID[filterId] ?? FILTERS[0];
 }
-

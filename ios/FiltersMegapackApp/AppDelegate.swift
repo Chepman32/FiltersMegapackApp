@@ -261,7 +261,15 @@ class RNFilterEngine: NSObject, RCTBridgeModule {
         output = output.applyingFilter("CIVibrance", parameters: ["inputAmount": weighted])
       case "temperature":
         let neutral = CIVector(x: 6500, y: 0)
-        let target = CIVector(x: weighted, y: operation.secondaryAmount ?? 0)
+        // Some catalog entries were authored with Kelvin-like secondary values.
+        // Core Image expects the tint component here, so clamp invalid ranges to neutral.
+        let tintComponent: CGFloat
+        if let secondaryAmount = operation.secondaryAmount, abs(secondaryAmount) <= 200 {
+          tintComponent = secondaryAmount
+        } else {
+          tintComponent = 0
+        }
+        let target = CIVector(x: weighted, y: tintComponent)
         output = output.applyingFilter(
           "CITemperatureAndTint",
           parameters: ["inputNeutral": neutral, "inputTargetNeutral": target]

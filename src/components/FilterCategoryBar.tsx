@@ -18,6 +18,7 @@ export function FilterCategoryBar({
   return (
     <ScrollView
       horizontal
+      style={styles.scroll}
       contentContainerStyle={styles.container}
       showsHorizontalScrollIndicator={false}
     >
@@ -56,8 +57,14 @@ export function FilterCategoryBar({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 0,
+    minHeight: 44,
+  },
   container: {
     paddingHorizontal: 16,
+    paddingVertical: 4,
+    alignItems: 'center',
     gap: 8,
   },
   pill: {
@@ -68,6 +75,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 7,
+    minHeight: 34,
     backgroundColor: palette.panel,
   },
   pillSelected: {

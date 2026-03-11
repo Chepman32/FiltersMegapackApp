@@ -10,8 +10,12 @@ import Slider from '@react-native-community/slider';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 import { useTranslation } from 'react-i18next';
-import { FILTERS_BY_CATEGORY, getFilterById } from '../filters/filterCatalog';
+import { FILTERS_BY_CATEGORY } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
+import {
+  NONE_FILTER_ID,
+  resolveFilterStack,
+} from '../filters/recipe';
 import { useStudioStore } from '../store/useStudioStore';
 import { palette } from '../theme/colors';
 import { FilterCategoryBar } from '../components/FilterCategoryBar';
@@ -37,6 +41,7 @@ export function EditorScreen() {
     favorites,
     commitFilterHistory,
     redoFilterChange,
+    resetFilterStack,
     setCategory,
     setFilter,
     setIntensity,
@@ -69,7 +74,7 @@ export function EditorScreen() {
     [selectedCategoryId],
   );
   const deferredFilters = useDeferredValue(filtersForCategory);
-  const activeFilter = getFilterById(filterStack.filterId);
+  const activeFilter = resolveFilterStack(filterStack);
   const previewHeight = Math.min(380, Math.max(290, height * 0.4));
   const undoLabel = t('common.undo', {
     defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
@@ -80,6 +85,17 @@ export function EditorScreen() {
   const shareLabel = t('common.share', {
     defaultValue: i18n.language.startsWith('ru') ? 'Поделиться' : 'Share',
   });
+  const resetLabel = t('common.reset', {
+    defaultValue: i18n.language.startsWith('ru') ? 'Сброс' : 'Reset',
+  });
+  const originalLabel = t('editor.original', {
+    defaultValue: i18n.language.startsWith('ru') ? 'Оригинал' : 'Original',
+  });
+  const canReset =
+    filterStack.filterId !== NONE_FILTER_ID ||
+    filterStack.intensity !== 1 ||
+    filterStack.parameterValues.micro !== 0.5 ||
+    filterStack.parameterValues.strength !== 1;
 
   const snapshotFilterStack = (stack: FilterStack): FilterStack => ({
     ...stack,
@@ -126,6 +142,10 @@ export function EditorScreen() {
     }
   };
 
+  const handleReset = () => {
+    resetFilterStack();
+  };
+
   return (
     <ScreenView style={styles.container}>
       <View style={styles.content}>
@@ -154,6 +174,18 @@ export function EditorScreen() {
               ]}
             >
               <Text style={styles.headerButtonLabel}>{redoLabel}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={resetLabel}
+              disabled={!canReset || busy}
+              onPress={handleReset}
+              style={[
+                styles.headerButton,
+                !canReset || busy ? styles.headerButtonDisabled : undefined,
+              ]}
+            >
+              <Text style={styles.headerButtonLabel}>{resetLabel}</Text>
             </Pressable>
           </View>
           <Pressable
@@ -191,7 +223,7 @@ export function EditorScreen() {
         ) : null}
 
         <View style={styles.intensityPanel}>
-          <Text style={styles.intensityTitle}>{activeFilter.name}</Text>
+          <Text style={styles.intensityTitle}>{activeFilter?.name ?? originalLabel}</Text>
           <Text style={styles.intensityValue}>{Math.round(filterStack.intensity * 100)}%</Text>
         </View>
         <Slider
@@ -249,7 +281,9 @@ export function EditorScreen() {
             favorites={favorites}
             filters={deferredFilters}
             selectedFilterId={filterStack.filterId}
-            onSelect={setFilter}
+            onSelect={filterId => {
+              setFilter(filterId);
+            }}
             onToggleFavorite={toggleFavorite}
           />
         </View>

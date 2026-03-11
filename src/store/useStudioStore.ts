@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import type { FilterCategoryId, FilterStack } from '../types/filter';
 import type { MediaAssetRef } from '../types/media';
 import type { ProjectDocument } from '../types/project';
-import { createDefaultFilterStack } from '../filters/recipe';
+import {
+  NONE_FILTER_ID,
+  createDefaultFilterStack,
+  createNeutralFilterStack,
+} from '../filters/recipe';
 import { getFilterById } from '../filters/filterCatalog';
 import { readJSON, writeJSON } from './storage';
 import { getProject, listProjects, upsertProject } from '../db/projectRepository';
@@ -40,6 +44,7 @@ interface StudioState {
   setFilter: (filterId: string, options?: FilterChangeOptions) => void;
   setIntensity: (intensity: number, options?: FilterChangeOptions) => void;
   setParameter: (id: string, value: number, options?: FilterChangeOptions) => void;
+  resetFilterStack: (options?: FilterChangeOptions) => void;
   commitFilterHistory: (previousStack: FilterStack) => void;
   undoFilterChange: () => void;
   redoFilterChange: () => void;
@@ -98,6 +103,16 @@ function historyState(past: FilterStack[], future: FilterStack[]) {
   };
 }
 
+function categoryForFilterId(
+  filterId: string,
+  fallback: FilterCategoryId,
+): FilterCategoryId {
+  if (filterId === NONE_FILTER_ID) {
+    return fallback;
+  }
+  return getFilterById(filterId).categoryId;
+}
+
 export const useStudioStore = create<StudioState>((set, get) => ({
   currentAsset: null,
   previewUri: null,
@@ -132,14 +147,21 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   setFilter(filterId, options) {
     set(state => {
-      if (state.filterStack.filterId === filterId) {
+      const nextFilterId =
+        state.filterStack.filterId === filterId ? NONE_FILTER_ID : filterId;
+      if (state.filterStack.filterId === nextFilterId) {
         return {};
       }
-      const recents = [filterId, ...state.recents.filter(id => id !== filterId)].slice(
-        0,
-        32,
-      );
-      writeJSON(RECENTS_KEY, recents);
+      const recents =
+        nextFilterId === NONE_FILTER_ID
+          ? state.recents
+          : [nextFilterId, ...state.recents.filter(id => id !== nextFilterId)].slice(
+              0,
+              32,
+            );
+      if (nextFilterId !== NONE_FILTER_ID) {
+        writeJSON(RECENTS_KEY, recents);
+      }
       const past =
         options?.trackHistory === false
           ? state.filterHistoryPast
@@ -149,9 +171,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return {
         filterStack: {
           ...state.filterStack,
-          filterId,
+          filterId: nextFilterId,
         },
-        selectedCategoryId: getFilterById(filterId).categoryId,
+        selectedCategoryId: categoryForFilterId(nextFilterId, state.selectedCategoryId),
         recents,
         ...historyState(past, future),
       };
@@ -201,6 +223,24 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     });
   },
 
+  resetFilterStack(options) {
+    set(state => {
+      const neutralStack = createNeutralFilterStack();
+      if (sameFilterStack(state.filterStack, neutralStack)) {
+        return {};
+      }
+      return {
+        ...(options?.trackHistory === false
+          ? {}
+          : historyState(
+              [...state.filterHistoryPast, cloneFilterStack(state.filterStack)],
+              [],
+            )),
+        filterStack: neutralStack,
+      };
+    });
+  },
+
   commitFilterHistory(previousStack) {
     set(state => {
       if (sameFilterStack(previousStack, state.filterStack)) {
@@ -223,7 +263,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const future = [cloneFilterStack(state.filterStack), ...state.filterHistoryFuture];
       return {
         filterStack: cloneFilterStack(previousStack),
-        selectedCategoryId: getFilterById(previousStack.filterId).categoryId,
+        selectedCategoryId: categoryForFilterId(
+          previousStack.filterId,
+          state.selectedCategoryId,
+        ),
         ...historyState(past, future),
       };
     });
@@ -238,7 +281,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const past = [...state.filterHistoryPast, cloneFilterStack(state.filterStack)];
       return {
         filterStack: cloneFilterStack(nextStack),
-        selectedCategoryId: getFilterById(nextStack.filterId).categoryId,
+        selectedCategoryId: categoryForFilterId(nextStack.filterId, state.selectedCategoryId),
         ...historyState(past, future),
       };
     });
@@ -314,7 +357,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({
       activeProjectId: project.id,
       filterStack: project.filterStack,
-      selectedCategoryId: getFilterById(project.filterStack.filterId).categoryId,
+      selectedCategoryId: categoryForFilterId(
+        project.filterStack.filterId,
+        get().selectedCategoryId,
+      ),
       currentAsset: project.assets.find(asset => asset.id === project.activeAssetId) ?? null,
       previewUri: project.coverUri ?? project.assets[0]?.uri ?? null,
       ...historyState([], []),
