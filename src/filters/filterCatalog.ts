@@ -27,6 +27,12 @@ interface CategoryTemplate {
   blueprints: OperationBlueprint[];
 }
 
+interface SpecialFilterTemplate {
+  id: string;
+  name: string;
+  operations: FilterOperation[];
+}
+
 const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   {
     id: 'cinematic',
@@ -478,6 +484,37 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   },
 ];
 
+const SPECIAL_FILTERS_BY_CATEGORY: Partial<
+  Record<StaticFilterCategoryId, SpecialFilterTemplate[]>
+> = {
+  bw: [
+    {
+      id: 'bw-pencil-sketch',
+      name: 'Pencil Sketch',
+      operations: [
+        {
+          type: 'pencilSketch',
+          amount: 0.96,
+          secondaryAmount: 0.78,
+        },
+      ],
+    },
+  ],
+  texture: [
+    {
+      id: 'texture-palette-knife',
+      name: 'Palette Knife',
+      operations: [
+        {
+          type: 'paletteKnife',
+          amount: 0.94,
+          secondaryAmount: 0.74,
+        },
+      ],
+    },
+  ],
+};
+
 function buildParameterSet(categoryId: StaticFilterCategoryId): FilterParameter[] {
   return [
     {
@@ -540,16 +577,26 @@ export const FILTER_CATEGORIES: FilterCategory[] = CATEGORY_TEMPLATES.map(
   }),
 );
 
-export const FILTERS: FilterDefinition[] = CATEGORY_TEMPLATES.flatMap(category =>
-  category.names.map((name, index) => ({
-    id: `${category.id}-${index + 1}`,
-    name,
-    categoryId: category.id,
-    indexInCategory: index,
-    operations: buildOperations(category, index),
-    parameters: buildParameterSet(category.id),
-  })),
-);
+export const FILTERS: FilterDefinition[] = CATEGORY_TEMPLATES.flatMap(category => {
+  const specialFilters = SPECIAL_FILTERS_BY_CATEGORY[category.id] ?? [];
+
+  return [
+    ...specialFilters.map((filter, index) => ({
+      ...filter,
+      categoryId: category.id,
+      indexInCategory: index,
+      parameters: buildParameterSet(category.id),
+    })),
+    ...category.names.map((name, index) => ({
+      id: `${category.id}-${index + 1}`,
+      name,
+      categoryId: category.id,
+      indexInCategory: index + specialFilters.length,
+      operations: buildOperations(category, index),
+      parameters: buildParameterSet(category.id),
+    })),
+  ];
+});
 
 export const FILTER_COUNT = FILTERS.length;
 export const FILTERS_BY_ID = Object.fromEntries(FILTERS.map(filter => [filter.id, filter]));

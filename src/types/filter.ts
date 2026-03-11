@@ -45,7 +45,9 @@ export type FilterOperationType =
   | 'thermal'
   | 'xray'
   | 'chromaShift'
-  | 'lightLeak';
+  | 'lightLeak'
+  | 'paletteKnife'
+  | 'pencilSketch';
 
 export interface FilterParameter {
   id: string;

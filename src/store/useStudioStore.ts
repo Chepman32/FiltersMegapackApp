@@ -134,9 +134,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   activeProjectId: null,
 
   setCurrentAsset(asset) {
+    const neutralStack = createNeutralFilterStack();
     set({
       currentAsset: asset,
       previewUri: asset?.uri ?? null,
+      filterStack: neutralStack,
+      ...historyState([], []),
     });
   },
 

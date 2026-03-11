@@ -1,18 +1,10 @@
 import { getFilterById } from './filterCatalog';
 import type { FilterDefinition, FilterStack, Recipe } from '../types/filter';
 
-export const DEFAULT_FILTER_ID = 'cinematic-1';
 export const NONE_FILTER_ID = '__none__';
 
 export function createDefaultFilterStack(): FilterStack {
-  return {
-    filterId: DEFAULT_FILTER_ID,
-    intensity: 1,
-    parameterValues: {
-      strength: 1,
-      micro: 0.5,
-    },
-  };
+  return createNeutralFilterStack();
 }
 
 export function createNeutralFilterStack(): FilterStack {

@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { StudioTabsParamList } from '../navigation/types';
 import { useStudioStore } from '../store/useStudioStore';
+import { FILTER_COUNT } from '../filters/filterCatalog';
 import { mapPickerAsset } from '../utils/media';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -92,7 +93,7 @@ export function CameraScreen() {
         style={styles.button}
       />
       <Text style={styles.note}>
-        {loading ? t('common.loading') : `${t('common.camera')} · 240 filters ready`}
+        {loading ? t('common.loading') : t('camera.ready', { count: FILTER_COUNT })}
       </Text>
     </ScreenView>
   );

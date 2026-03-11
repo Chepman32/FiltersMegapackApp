@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { FILTER_COUNT } from '../filters/filterCatalog';
 import { palette } from '../theme/colors';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScreenView } from '../components/Screen';
@@ -17,7 +18,7 @@ export function OnboardingScreen({ navigation }: Props) {
     <ScreenView style={styles.container}>
       <View style={styles.hero}>
         <Text style={styles.title}>{t('onboarding.title')}</Text>
-        <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.subtitle', { count: FILTER_COUNT })}</Text>
       </View>
       <PrimaryButton
         label={t('onboarding.cta')}

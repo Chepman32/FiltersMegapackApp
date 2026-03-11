@@ -21,7 +21,7 @@ export const translations = {
     onboarding: {
       title: 'Create Infinite Looks',
       subtitle:
-        'Build unique edits with 240 handcrafted filters, live camera styling, AI masks, and pro exports.',
+        'Build unique edits with {{count}} handcrafted filters, live camera styling, AI masks, and pro exports.',
       cta: 'Start Editing',
     },
     categories: {
@@ -66,6 +66,7 @@ export const translations = {
       capturePhoto: 'Capture Photo',
       captureVideo: 'Capture Video',
       importFromLibrary: 'Import from Library',
+      ready: '{{count}} filters ready',
     },
     collage: {
       title: 'Collage Studio',
@@ -109,7 +110,7 @@ export const translations = {
     onboarding: {
       title: 'Создавайте бесконечные стили',
       subtitle:
-        '240 уникальных фильтров, стилизация камеры, AI-маски и профессиональный экспорт в одном приложении.',
+        'Более {{count}} фильтров, стилизация камеры, AI-маски и профессиональный экспорт в одном приложении.',
       cta: 'Начать редактирование',
     },
     categories: {
@@ -154,6 +155,7 @@ export const translations = {
       capturePhoto: 'Сделать фото',
       captureVideo: 'Записать видео',
       importFromLibrary: 'Импорт из галереи',
+      ready: 'Доступно {{count}} фильтров',
     },
     collage: {
       title: 'Студия коллажей',
