@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-type TabBarIconKind = 'home' | 'mixes' | 'collage' | 'settings';
+type TabBarIconKind = 'home' | 'mixes' | 'settings';
 
 interface TabBarIconProps {
   kind: TabBarIconKind;
@@ -13,7 +13,6 @@ export function TabBarIcon({ kind, color, focused }: TabBarIconProps) {
     <View style={[styles.frame, focused ? styles.frameFocused : undefined]}>
       {kind === 'home' ? <HomeIcon color={color} /> : null}
       {kind === 'mixes' ? <MixesIcon color={color} /> : null}
-      {kind === 'collage' ? <CollageIcon color={color} /> : null}
       {kind === 'settings' ? <SettingsIcon color={color} /> : null}
     </View>
   );
@@ -36,17 +35,6 @@ function MixesIcon({ color }: { color: string }) {
       <View style={[styles.mixCard, styles.mixCardPrimary, { borderColor: color }]} />
       <View style={[styles.mixCard, styles.mixCardSecondary, { borderColor: color }]} />
       <View style={[styles.mixGlow, { backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function CollageIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.canvas}>
-      <View style={[styles.collageCell, styles.collageCellTopLeft, { borderColor: color }]} />
-      <View style={[styles.collageCell, styles.collageCellTopRight, { borderColor: color }]} />
-      <View style={[styles.collageCell, styles.collageCellBottomLeft, { borderColor: color }]} />
-      <View style={[styles.collageCell, styles.collageCellBottomRight, { borderColor: color }]} />
     </View>
   );
 }
@@ -136,29 +124,6 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-  },
-  collageCell: {
-    position: 'absolute',
-    width: 7,
-    height: 7,
-    borderWidth: 1.7,
-    borderRadius: 2.5,
-  },
-  collageCellTopLeft: {
-    top: 3,
-    left: 3,
-  },
-  collageCellTopRight: {
-    top: 3,
-    right: 3,
-  },
-  collageCellBottomLeft: {
-    bottom: 3,
-    left: 3,
-  },
-  collageCellBottomRight: {
-    bottom: 3,
-    right: 3,
   },
   settingsRing: {
     position: 'absolute',

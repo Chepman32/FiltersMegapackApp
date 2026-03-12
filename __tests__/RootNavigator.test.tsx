@@ -45,7 +45,7 @@ describe('RootNavigator tabs', () => {
     useStudioStore.setState({ onboardingSeen: true });
   });
 
-  it('renders Home, Mixes, Collage, and Settings tabs', async () => {
+  it('renders Home, Mixes, and Settings tabs', async () => {
     await ReactTestRenderer.act(() => {
       ReactTestRenderer.create(<RootNavigator />);
     });
@@ -53,14 +53,14 @@ describe('RootNavigator tabs', () => {
     expect(mockTabScreens.map(screen => screen.name)).toEqual([
       'HomeTab',
       'MixesTab',
-      'CollageTab',
       'SettingsTab',
     ]);
     expect(mockTabScreens.map(screen => screen.title)).toContain('Home');
     expect(mockTabScreens.map(screen => screen.title)).toContain('Mixes');
+    expect(mockTabScreens.map(screen => screen.title)).toContain('Settings');
     expect(mockTabScreens.map(screen => screen.name)).not.toContain('CameraTab');
     expect(mockTabScreens.map(screen => screen.name)).not.toContain('ProjectsTab');
     expect(mockTabScreens.map(screen => screen.name)).not.toContain('EditorTab');
-    expect(mockTabScreens).toHaveLength(4);
+    expect(mockTabScreens).toHaveLength(3);
   });
 });

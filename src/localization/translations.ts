@@ -4,7 +4,6 @@ export const translations = {
       home: 'Home',
       editor: 'Editor',
       mixes: 'Mixes',
-      collage: 'Collage',
       projects: 'Projects',
       settings: 'Settings',
       importMedia: 'Import Media',
@@ -138,12 +137,6 @@ export const translations = {
         },
       },
     },
-    collage: {
-      title: 'Collage Studio',
-      subtitle: 'Mix up to 9 assets with smart spacing and backgrounds.',
-      addSlot: 'Add slot',
-      layout: 'Layout',
-    },
     mixes: {
       eyebrow: 'Filter Library',
       title: 'Mixes',
@@ -173,7 +166,6 @@ export const translations = {
       home: 'Домой',
       editor: 'Редактор',
       mixes: 'Миксы',
-      collage: 'Коллаж',
       projects: 'Проекты',
       settings: 'Настройки',
       importMedia: 'Импорт медиа',
@@ -311,12 +303,6 @@ export const translations = {
           camera: 'CM',
         },
       },
-    },
-    collage: {
-      title: 'Студия коллажей',
-      subtitle: 'Собирайте до 9 медиа в макетах с умными отступами и фоном.',
-      addSlot: 'Добавить слот',
-      layout: 'Макет',
     },
     mixes: {
       eyebrow: 'Библиотека фильтров',

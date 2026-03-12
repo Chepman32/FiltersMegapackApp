@@ -24,6 +24,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
@@ -40,7 +41,7 @@ import { FilterCategoryBar } from '../components/FilterCategoryBar';
 import { FilterGrid } from '../components/FilterGrid';
 import { MediaPreview } from '../components/MediaPreview';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { ScreenView } from '../components/Screen';
+import { ScreenScrollView } from '../components/Screen';
 import { useRenderPreview } from '../hooks/useRenderPreview';
 import { buildRenderOptions, FilterEngine } from '../native/FilterEngine';
 import { MediaPipeline } from '../native/MediaPipeline';
@@ -52,6 +53,7 @@ export function EditorScreen() {
   const { i18n, t } = useTranslation();
   const navigation = useNavigation<EditorNav>();
   const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const {
     currentAsset,
     previewUri,
@@ -126,7 +128,9 @@ export function EditorScreen() {
     [activeFilterIds, filterStack.intensity, filterStack.mixEnabled, filterStack.parameterValues],
   );
   const isMixMode = Boolean(filterStack.mixEnabled);
-  const previewHeight = Math.min(380, Math.max(290, height * 0.4));
+  const previewHeight = isMixMode
+    ? Math.min(304, Math.max(248, height * 0.31))
+    : Math.min(332, Math.max(266, height * 0.35));
   const undoLabel = t('common.undo', {
     defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
   });
@@ -313,8 +317,16 @@ export function EditorScreen() {
   ) : null;
 
   return (
-    <ScreenView style={styles.container}>
-      <View style={styles.content}>
+    <ScreenScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingBottom: insets.bottom + 24,
+        },
+      ]}
+    >
+      <View style={styles.container}>
         <View style={styles.navigationRow}>
           <Pressable
             accessibilityRole="button"
@@ -468,17 +480,15 @@ export function EditorScreen() {
           />
         </Animated.View>
       </View>
-    </ScreenView>
+    </ScreenScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: palette.bg,
   },
   content: {
-    flex: 1,
     paddingBottom: 8,
   },
   navigationRow: {

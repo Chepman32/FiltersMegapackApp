@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +13,6 @@ import { TabBarIcon } from '../components/TabBarIcon';
 import { HomeScreen } from '../screens/HomeScreen';
 import { EditorScreen } from '../screens/EditorScreen';
 import { MixesScreen } from '../screens/MixesScreen';
-import { CollageScreen } from '../screens/CollageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { useStudioStore } from '../store/useStudioStore';
@@ -25,7 +25,6 @@ const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const TAB_ICON_KIND = {
   HomeTab: 'home',
   MixesTab: 'mixes',
-  CollageTab: 'collage',
   SettingsTab: 'settings',
 } as const;
 
@@ -35,9 +34,6 @@ const TAB_ICON_RENDERERS = {
   ),
   MixesTab: ({ color, focused }: { color: string; focused: boolean }) => (
     <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.MixesTab} />
-  ),
-  CollageTab: ({ color, focused }: { color: string; focused: boolean }) => (
-    <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.CollageTab} />
   ),
   SettingsTab: ({ color, focused }: { color: string; focused: boolean }) => (
     <TabBarIcon color={color} focused={focused} kind={TAB_ICON_KIND.SettingsTab} />
@@ -61,11 +57,20 @@ function HomeNavigator() {
 function StudioTabs() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const tabBarStyle = useMemo(
+    () => ({
+      backgroundColor: '#111522',
+      borderTopColor: palette.border,
+      height: 68 + Math.max(insets.bottom, 8),
+      paddingBottom: Math.max(insets.bottom, 8),
+      paddingTop: 6,
+    }),
+    [insets.bottom],
+  );
   const labels = useMemo(
     () => ({
       home: t('common.home'),
       mixes: t('common.mixes'),
-      collage: t('common.collage'),
       settings: t('common.settings'),
     }),
     [t],
@@ -74,6 +79,16 @@ function StudioTabs() {
   return (
     <Tabs.Navigator
       screenOptions={({ route }) => ({
+        ...(route.name === 'HomeTab' &&
+        getFocusedRouteNameFromRoute(route) === 'Editor'
+          ? {
+              tabBarStyle: {
+                display: 'none',
+              },
+            }
+          : {
+              tabBarStyle,
+            }),
         headerShown: false,
         tabBarActiveTintColor: palette.textPrimary,
         tabBarInactiveTintColor: palette.textSecondary,
@@ -84,13 +99,6 @@ function StudioTabs() {
         },
         tabBarItemStyle: {
           paddingTop: 4,
-        },
-        tabBarStyle: {
-          backgroundColor: '#111522',
-          borderTopColor: palette.border,
-          height: 68 + Math.max(insets.bottom, 8),
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 6,
         },
       })}
     >
@@ -103,11 +111,6 @@ function StudioTabs() {
         component={MixesScreen}
         name="MixesTab"
         options={{ title: labels.mixes }}
-      />
-      <Tabs.Screen
-        component={CollageScreen}
-        name="CollageTab"
-        options={{ title: labels.collage }}
       />
       <Tabs.Screen
         component={SettingsScreen}

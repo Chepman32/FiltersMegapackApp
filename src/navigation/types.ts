@@ -8,7 +8,6 @@ export type HomeStackParamList = {
 export type StudioTabsParamList = {
   HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
   MixesTab: undefined;
-  CollageTab: undefined;
   SettingsTab: undefined;
 };
 
