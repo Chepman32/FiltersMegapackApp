@@ -1,0 +1,106 @@
+diff --git a/ios/Shared/MenuViewImplementation.swift b/ios/Shared/MenuViewImplementation.swift
+index 5c4e0da4292b15d3a27b5ea1555f11452a470815..19429def3a658e1a1b05b2073ef8bb9dabf5bc19 100644
+--- a/ios/Shared/MenuViewImplementation.swift
++++ b/ios/Shared/MenuViewImplementation.swift
+@@ -9,6 +9,7 @@ import UIKit
+ @available(iOS 14.0, *)
+ @objc(MenuViewImplementation)
+ public class MenuViewImplementation: UIButton {
++    private let fallbackPreviewCornerRadius: CGFloat = 18
+ 
+     @objc public var actions: [NSDictionary]? {
+         didSet {
+@@ -54,6 +55,8 @@ public class MenuViewImplementation: UIButton {
+ 
+     override init(frame: CGRect) {
+         super.init(frame: frame)
++        self.backgroundColor = .clear
++        self.isOpaque = false
+         let interaction = UIContextMenuInteraction(delegate: self)
+         self.addInteraction(interaction)
+         self.setup()
+@@ -71,6 +74,20 @@ public class MenuViewImplementation: UIButton {
+         sendMenuClose()
+     }
+ 
++    public override func contextMenuInteraction(
++        _ interaction: UIContextMenuInteraction,
++        previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration
++    ) -> UITargetedPreview? {
++        return makeTargetedPreview()
++    }
++
++    public override func contextMenuInteraction(
++        _ interaction: UIContextMenuInteraction,
++        previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
++    ) -> UITargetedPreview? {
++        return makeTargetedPreview()
++    }
++
+     func setup () {
+         let menu = UIMenu(title: _title,
+             identifier: nil,
+@@ -90,6 +107,63 @@ public class MenuViewImplementation: UIButton {
+         self.showsMenuAsPrimaryAction = !shouldOpenOnLongPress
+     }
+ 
++    private func resolvedPreviewCornerRadius() -> CGFloat {
++        if self.layer.cornerRadius > 0 {
++            return self.layer.cornerRadius
++        }
++
++        let candidate = self.subviews
++            .filter { !$0.isHidden && $0.alpha > 0.01 && !$0.bounds.isEmpty }
++            .max { left, right in
++                (left.bounds.width * left.bounds.height) < (right.bounds.width * right.bounds.height)
++            }
++
++        return candidate?.layer.cornerRadius ?? fallbackPreviewCornerRadius
++    }
++
++    private func makeRenderedPreviewView() -> UIView {
++        let renderer = UIGraphicsImageRenderer(bounds: self.bounds)
++        let image = renderer.image { context in
++            if !self.drawHierarchy(in: self.bounds, afterScreenUpdates: false) {
++                self.layer.render(in: context.cgContext)
++            }
++        }
++
++        let imageView = UIImageView(image: image)
++        imageView.frame = self.bounds
++        imageView.backgroundColor = .clear
++        imageView.contentMode = .scaleToFill
++        imageView.layer.cornerRadius = resolvedPreviewCornerRadius()
++        imageView.layer.masksToBounds = true
++        return imageView
++    }
++
++    private func makeTargetedPreview() -> UITargetedPreview? {
++        guard !self.bounds.isEmpty else {
++            return nil
++        }
++
++        self.layoutIfNeeded()
++
++        let previewView = self.snapshotView(afterScreenUpdates: false) ?? makeRenderedPreviewView()
++        previewView.frame = self.bounds
++        previewView.backgroundColor = .clear
++
++        let parameters = UIPreviewParameters()
++        parameters.backgroundColor = .clear
++        parameters.visiblePath = UIBezierPath(
++            roundedRect: self.bounds,
++            cornerRadius: resolvedPreviewCornerRadius()
++        )
++
++        let target = UIPreviewTarget(
++            container: self,
++            center: CGPoint(x: self.bounds.midX, y: self.bounds.midY)
++        )
++
++        return UITargetedPreview(view: previewView, parameters: parameters, target: target)
++    }
++
+     public override func reactSetFrame(_ frame: CGRect) {
+         super.reactSetFrame(frame);
+     }

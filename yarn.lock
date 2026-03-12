@@ -2202,13 +2202,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@react-native-menu/menu@npm:^2.0.0":
+"@react-native-menu/menu@npm:2.0.0":
   version: 2.0.0
   resolution: "@react-native-menu/menu@npm:2.0.0"
   peerDependencies:
     react: "*"
     react-native: "*"
   checksum: 10c0/1e88e1892730c70e28a654a8df6427f80f1b88880eaa62f2744072b9cebead4e834490d15ef7f0b91eadf9cb1ec9241b29f116ce7e94661685b41faf10af3fa3
+  languageName: node
+  linkType: hard
+
+"@react-native-menu/menu@patch:@react-native-menu/menu@npm%3A2.0.0#~/.yarn/patches/@react-native-menu-menu-npm-2.0.0-15e1fd477a.patch":
+  version: 2.0.0
+  resolution: "@react-native-menu/menu@patch:@react-native-menu/menu@npm%3A2.0.0#~/.yarn/patches/@react-native-menu-menu-npm-2.0.0-15e1fd477a.patch::version=2.0.0&hash=9e5fec"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/2f22ae6f6b69689190d7b1f99f3ad495da89ece86454b6826faec8f0bb599dc96cc2bc3d7dcbb0e781c707b861a82d15c677225e704d8ba65d5309d51efd7860
   languageName: node
   linkType: hard
 
@@ -2931,7 +2941,7 @@ __metadata:
     "@react-native-community/cli-platform-android": "npm:20.1.0"
     "@react-native-community/cli-platform-ios": "npm:20.1.0"
     "@react-native-community/slider": "npm:^5.1.2"
-    "@react-native-menu/menu": "npm:^2.0.0"
+    "@react-native-menu/menu": "patch:@react-native-menu/menu@npm%3A2.0.0#~/.yarn/patches/@react-native-menu-menu-npm-2.0.0-15e1fd477a.patch"
     "@react-native/babel-preset": "npm:0.84.1"
     "@react-native/eslint-config": "npm:0.84.1"
     "@react-native/metro-config": "npm:0.84.1"
