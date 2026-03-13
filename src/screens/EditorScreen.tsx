@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -24,7 +25,6 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
@@ -41,19 +41,118 @@ import { FilterCategoryBar } from '../components/FilterCategoryBar';
 import { FilterGrid } from '../components/FilterGrid';
 import { MediaPreview } from '../components/MediaPreview';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { ScreenScrollView } from '../components/Screen';
+import { ScreenView } from '../components/Screen';
 import { useRenderPreview } from '../hooks/useRenderPreview';
 import { buildRenderOptions, FilterEngine } from '../native/FilterEngine';
 import { MediaPipeline } from '../native/MediaPipeline';
 import { mapPickerAsset } from '../utils/media';
 
 type EditorNav = NativeStackNavigationProp<HomeStackParamList, 'Editor'>;
+type OverlayActionIconKind = 'undo' | 'redo' | 'reset' | 'share';
+
+interface OverlayActionButtonProps {
+  accessibilityLabel: string;
+  busy?: boolean;
+  disabled: boolean;
+  kind: OverlayActionIconKind;
+  onPress: () => void;
+  tone?: 'default' | 'accent';
+}
+
+function OverlayActionButton({
+  accessibilityLabel,
+  busy = false,
+  disabled,
+  kind,
+  onPress,
+  tone = 'default',
+}: OverlayActionButtonProps) {
+  const iconColor = tone === 'accent' ? '#041019' : '#eef4ff';
+
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.overlayActionButton,
+        tone === 'accent'
+          ? styles.overlayActionButtonAccent
+          : styles.overlayActionButtonDefault,
+        disabled ? styles.headerButtonDisabled : undefined,
+      ]}
+    >
+      {busy ? (
+        <ActivityIndicator color={iconColor} size="small" />
+      ) : (
+        <OverlayActionIcon color={iconColor} kind={kind} />
+      )}
+    </Pressable>
+  );
+}
+
+function OverlayActionIcon({
+  color,
+  kind,
+}: {
+  color: string;
+  kind: OverlayActionIconKind;
+}) {
+  if (kind === 'undo') {
+    return (
+      <View style={styles.iconCanvas}>
+        <View style={[styles.undoHeadTop, { backgroundColor: color }]} />
+        <View style={[styles.undoHeadBottom, { backgroundColor: color }]} />
+        <View style={[styles.undoShaft, { backgroundColor: color }]} />
+        <View style={[styles.undoStem, { backgroundColor: color }]} />
+      </View>
+    );
+  }
+
+  if (kind === 'redo') {
+    return (
+      <View style={styles.iconCanvas}>
+        <View style={[styles.redoHeadTop, { backgroundColor: color }]} />
+        <View style={[styles.redoHeadBottom, { backgroundColor: color }]} />
+        <View style={[styles.redoShaft, { backgroundColor: color }]} />
+        <View style={[styles.redoStem, { backgroundColor: color }]} />
+      </View>
+    );
+  }
+
+  if (kind === 'reset') {
+    return (
+      <View style={styles.iconCanvas}>
+        <View
+          style={[
+            styles.resetRing,
+            {
+              borderColor: color,
+              borderRightColor: 'transparent',
+            },
+          ]}
+        />
+        <View style={[styles.resetHeadTop, { backgroundColor: color }]} />
+        <View style={[styles.resetHeadBottom, { backgroundColor: color }]} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.iconCanvas}>
+      <View style={[styles.shareStem, { backgroundColor: color }]} />
+      <View style={[styles.shareHeadLeft, { backgroundColor: color }]} />
+      <View style={[styles.shareHeadRight, { backgroundColor: color }]} />
+      <View style={[styles.shareBox, { borderColor: color }]} />
+    </View>
+  );
+}
 
 export function EditorScreen() {
   const { i18n, t } = useTranslation();
   const navigation = useNavigation<EditorNav>();
   const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const {
     currentAsset,
     previewUri,
@@ -128,7 +227,7 @@ export function EditorScreen() {
     [activeFilterIds, filterStack.intensity, filterStack.mixEnabled, filterStack.parameterValues],
   );
   const isMixMode = Boolean(filterStack.mixEnabled);
-  const previewHeight = Math.min(320, Math.max(254, height * 0.34));
+  const previewHeight = Math.min(264, Math.max(214, height * 0.27));
   const undoLabel = t('common.undo', {
     defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
   });
@@ -260,71 +359,39 @@ export function EditorScreen() {
   const overlayActions = currentAsset ? (
     <>
       <View style={styles.historyGroup}>
-        <Pressable
-          accessibilityRole="button"
+        <OverlayActionButton
           accessibilityLabel={undoLabel}
           disabled={!canUndo || busy}
+          kind="undo"
           onPress={undoFilterChange}
-          style={[
-            styles.headerButton,
-            !canUndo || busy ? styles.headerButtonDisabled : undefined,
-          ]}
-        >
-          <Text style={styles.headerButtonLabel}>{undoLabel}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
+        />
+        <OverlayActionButton
           accessibilityLabel={redoLabel}
           disabled={!canRedo || busy}
+          kind="redo"
           onPress={redoFilterChange}
-          style={[
-            styles.headerButton,
-            !canRedo || busy ? styles.headerButtonDisabled : undefined,
-          ]}
-        >
-          <Text style={styles.headerButtonLabel}>{redoLabel}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
+        />
+        <OverlayActionButton
           accessibilityLabel={resetLabel}
           disabled={!canReset || busy}
+          kind="reset"
           onPress={handleReset}
-          style={[
-            styles.headerButton,
-            !canReset || busy ? styles.headerButtonDisabled : undefined,
-          ]}
-        >
-          <Text style={styles.headerButtonLabel}>{resetLabel}</Text>
-        </Pressable>
+        />
       </View>
-      <Pressable
-        accessibilityRole="button"
+      <OverlayActionButton
         accessibilityLabel={shareLabel}
+        busy={busy}
         disabled={!currentAsset || busy}
+        kind="share"
         onPress={handleShare}
-        style={[
-          styles.shareButton,
-          !currentAsset || busy ? styles.headerButtonDisabled : undefined,
-        ]}
-      >
-        <Text style={styles.shareButtonLabel}>
-          {busy ? t('common.loading') : shareLabel}
-        </Text>
-      </Pressable>
+        tone="accent"
+      />
     </>
   ) : null;
 
   return (
-    <ScreenScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingBottom: insets.bottom + 24,
-        },
-      ]}
-    >
-      <View style={styles.container}>
+    <ScreenView edges={['top', 'bottom']} style={styles.container}>
+      <View style={styles.content}>
         <View style={styles.navigationRow}>
           <Pressable
             accessibilityRole="button"
@@ -478,19 +545,21 @@ export function EditorScreen() {
           />
         </Animated.View>
       </View>
-    </ScreenScrollView>
+    </ScreenView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     backgroundColor: palette.bg,
   },
   content: {
+    flex: 1,
     paddingBottom: 8,
   },
   navigationRow: {
-    marginTop: 8,
+    marginTop: 4,
     marginHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'flex-start',
@@ -509,7 +578,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editorTopBar: {
-    marginTop: 14,
+    marginTop: 10,
     marginHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -556,51 +625,177 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexWrap: 'wrap',
   },
-  headerButton: {
+  overlayActionButton: {
     borderRadius: 12,
+    width: 52,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayActionButtonDefault: {
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: 'rgba(13, 20, 36, 0.88)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  },
+  overlayActionButtonAccent: {
+    backgroundColor: palette.accent,
+    minWidth: 60,
   },
   headerButtonDisabled: {
     opacity: 0.45,
   },
-  headerButtonLabel: {
-    color: palette.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
+  iconCanvas: {
+    width: 22,
+    height: 22,
   },
-  shareButton: {
-    borderRadius: 12,
-    backgroundColor: palette.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minWidth: 88,
-    alignItems: 'center',
+  undoHeadTop: {
+    position: 'absolute',
+    left: 3,
+    top: 7,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '-45deg' }],
   },
-  shareButtonLabel: {
-    color: '#041019',
-    fontSize: 12,
-    fontWeight: '800',
+  undoHeadBottom: {
+    position: 'absolute',
+    left: 3,
+    top: 11,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  undoShaft: {
+    position: 'absolute',
+    left: 7,
+    top: 9,
+    width: 9,
+    height: 2,
+    borderRadius: 1,
+  },
+  undoStem: {
+    position: 'absolute',
+    left: 14,
+    top: 9,
+    width: 2,
+    height: 6,
+    borderRadius: 1,
+  },
+  redoHeadTop: {
+    position: 'absolute',
+    right: 3,
+    top: 7,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  redoHeadBottom: {
+    position: 'absolute',
+    right: 3,
+    top: 11,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '-45deg' }],
+  },
+  redoShaft: {
+    position: 'absolute',
+    right: 7,
+    top: 9,
+    width: 9,
+    height: 2,
+    borderRadius: 1,
+  },
+  redoStem: {
+    position: 'absolute',
+    left: 6,
+    top: 9,
+    width: 2,
+    height: 6,
+    borderRadius: 1,
+  },
+  resetRing: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 14,
+    height: 14,
+    borderWidth: 2,
+    borderRadius: 7,
+  },
+  resetHeadTop: {
+    position: 'absolute',
+    right: 3,
+    top: 4,
+    width: 6,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  resetHeadBottom: {
+    position: 'absolute',
+    right: 2,
+    top: 7,
+    width: 6,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '-45deg' }],
+  },
+  shareStem: {
+    position: 'absolute',
+    top: 2,
+    left: 10,
+    width: 2,
+    height: 11,
+    borderRadius: 1,
+  },
+  shareHeadLeft: {
+    position: 'absolute',
+    left: 6,
+    top: 4,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '-45deg' }],
+  },
+  shareHeadRight: {
+    position: 'absolute',
+    left: 9,
+    top: 4,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  shareBox: {
+    position: 'absolute',
+    left: 5,
+    bottom: 3,
+    width: 12,
+    height: 9,
+    borderWidth: 2,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
   },
   preview: {
-    marginTop: 4,
+    marginTop: 2,
   },
   importButton: {
     marginHorizontal: 16,
     marginTop: 12,
   },
   mixPanel: {
-    marginTop: 12,
+    marginTop: 10,
     marginHorizontal: 16,
     borderRadius: 18,
     backgroundColor: '#121927',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   mixPanelLabel: {
     color: '#ffbe85',
@@ -610,7 +805,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.9,
   },
   mixChipRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
@@ -634,7 +829,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   intensityPanel: {
-    marginTop: 10,
+    marginTop: 8,
     marginHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -652,10 +847,10 @@ const styles = StyleSheet.create({
   },
   slider: {
     marginHorizontal: 16,
-    marginTop: 1,
+    marginTop: 0,
   },
   countRow: {
-    marginTop: 4,
+    marginTop: 2,
     marginHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -672,7 +867,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   gridContainer: {
-    height: 178,
+    height: 174,
     marginTop: 2,
   },
 });

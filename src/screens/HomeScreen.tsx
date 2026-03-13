@@ -190,6 +190,20 @@ export function HomeScreen() {
     });
   }, [homeProjects.foldersWithProjects]);
 
+  useEffect(() => {
+    if (!sourceSheetMounted) {
+      return;
+    }
+
+    sheetProgress.setValue(0);
+    NativeAnimated.spring(sheetProgress, {
+      toValue: 1,
+      friction: 8,
+      tension: 90,
+      useNativeDriver: true,
+    }).start();
+  }, [sheetProgress, sourceSheetMounted]);
+
   const userFolderTargets = useMemo(
     () =>
       folders.map(folder => ({
@@ -201,13 +215,6 @@ export function HomeScreen() {
 
   const openSourceSheet = () => {
     setSourceSheetMounted(true);
-    sheetProgress.setValue(0);
-    NativeAnimated.spring(sheetProgress, {
-      toValue: 1,
-      friction: 8,
-      tension: 90,
-      useNativeDriver: true,
-    }).start();
   };
 
   const closeSourceSheet = (callback?: () => void) => {

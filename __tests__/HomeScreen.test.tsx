@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Image, Text } from 'react-native';
+import { Image, Modal, Text } from 'react-native';
 import '../src/localization/i18n';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import type { FolderDocument } from '../src/types/folder';
@@ -178,5 +178,25 @@ describe('HomeScreen', () => {
     const texts = renderer!.root.findAllByType(Text).map(node => node.props.children).flat();
     expect(texts).toContain('Trash');
     expect(texts).toContain('1 project');
+  });
+
+  it('opens the source sheet when the create project button is pressed', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<HomeScreen />);
+    });
+
+    const fab = renderer!.root.find(
+      node =>
+        node.props?.accessibilityLabel === 'Create project' &&
+        typeof node.props?.onPress === 'function',
+    );
+
+    await ReactTestRenderer.act(() => {
+      fab.props.onPress();
+    });
+
+    const modal = renderer!.root.findByType(Modal);
+    expect(modal.props.visible).toBe(true);
   });
 });
