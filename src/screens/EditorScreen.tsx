@@ -67,7 +67,7 @@ function OverlayActionButton({
   onPress,
   tone = 'default',
 }: OverlayActionButtonProps) {
-  const iconColor = tone === 'accent' ? '#041019' : '#eef4ff';
+  const iconColor = tone === 'accent' ? palette.accent : '#eef4ff';
 
   return (
     <Pressable
@@ -77,9 +77,8 @@ function OverlayActionButton({
       onPress={onPress}
       style={[
         styles.overlayActionButton,
-        tone === 'accent'
-          ? styles.overlayActionButtonAccent
-          : styles.overlayActionButtonDefault,
+        styles.overlayActionButtonDefault,
+        tone === 'accent' ? styles.overlayActionButtonAccent : undefined,
         disabled ? styles.headerButtonDisabled : undefined,
       ]}
     >
@@ -627,19 +626,18 @@ const styles = StyleSheet.create({
   },
   overlayActionButton: {
     borderRadius: 12,
-    width: 52,
-    height: 44,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overlayActionButtonDefault: {
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: 'rgba(13, 20, 36, 0.88)',
+    backgroundColor: 'rgba(13, 20, 36, 0.4)',
   },
   overlayActionButtonAccent: {
-    backgroundColor: palette.accent,
-    minWidth: 60,
+    borderColor: 'rgba(125, 226, 255, 0.24)',
   },
   headerButtonDisabled: {
     opacity: 0.45,
