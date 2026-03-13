@@ -214,8 +214,8 @@ function categoryForFilterStack(
   filterStack: FilterStack,
   fallback: FilterCategoryId,
 ): FilterCategoryId {
-  if (fallback === 'favorites') {
-    return 'favorites';
+  if (fallback === 'favorites' || fallback === 'search') {
+    return fallback;
   }
   const activeFilterIds = getActiveFilterIds(filterStack);
   const primaryFilterId =

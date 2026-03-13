@@ -11,6 +11,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -25,7 +26,12 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { FILTERS_BY_CATEGORY, FILTERS_BY_ID } from '../filters/filterCatalog';
+import {
+  FILTER_CATEGORIES,
+  FILTERS,
+  FILTERS_BY_CATEGORY,
+  FILTERS_BY_ID,
+} from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
   MAX_MIX_FILTERS,
@@ -180,9 +186,12 @@ export function EditorScreen() {
 
   const [statusLabel, setStatusLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const intensityStartRef = useRef<FilterStack | null>(null);
   const microStartRef = useRef<FilterStack | null>(null);
   const categorySwitchProgress = useSharedValue(1);
+  const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
+  const isSearchMode = selectedCategoryId === 'search';
 
   useRenderPreview({
     asset: currentAsset,
@@ -195,9 +204,21 @@ export function EditorScreen() {
     },
   });
 
-  const filtersForCategory = useMemo(
+  const categorySearchIndex = useMemo(
     () =>
-      selectedCategoryId === 'favorites'
+      FILTER_CATEGORIES.reduce<Record<string, string>>((acc, category) => {
+        acc[category.id] = `${category.id} ${t(category.titleKey)} ${t(category.subtitleKey)}`
+          .trim()
+          .toLowerCase();
+        return acc;
+      }, {}),
+    [t],
+  );
+  const baseFilters = useMemo(
+    () =>
+      selectedCategoryId === 'search'
+        ? FILTERS
+        : selectedCategoryId === 'favorites'
         ? favorites.flatMap(filterId => {
             const filter = FILTERS_BY_ID[filterId];
             return filter ? [filter] : [];
@@ -205,7 +226,24 @@ export function EditorScreen() {
         : (FILTERS_BY_CATEGORY[selectedCategoryId] ?? []),
     [favorites, selectedCategoryId],
   );
+  const filtersForCategory = useMemo(() => {
+    if (!isSearchMode || deferredSearchQuery.length === 0) {
+      return baseFilters;
+    }
+
+    return baseFilters.filter(filter => {
+      const searchableText = [
+        filter.name,
+        filter.id,
+        categorySearchIndex[filter.categoryId] ?? filter.categoryId,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return searchableText.includes(deferredSearchQuery);
+    });
+  }, [baseFilters, categorySearchIndex, deferredSearchQuery, isSearchMode]);
   const deferredFilters = useDeferredValue(filtersForCategory);
+  const totalFiltersCount = baseFilters.length;
   const activeFilter = resolveFilterStack(filterStack);
   const activeFilters = useMemo(
     () => resolveFiltersInStack(filterStack),
@@ -243,6 +281,7 @@ export function EditorScreen() {
     defaultValue: i18n.language.startsWith('ru') ? 'Оригинал' : 'Original',
   });
   const mixLabel = t('editor.mix');
+  const searchPlaceholder = t('editor.searchPlaceholder');
   const canReset =
     activeFilterIds.length > 0 ||
     filterStack.intensity !== 1 ||
@@ -528,20 +567,47 @@ export function EditorScreen() {
           selectedId={selectedCategoryId}
           onSelect={setCategory}
         />
+        {isSearchMode ? (
+          <View style={styles.searchInputShell}>
+            <TextInput
+              accessibilityLabel={searchPlaceholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              onChangeText={setSearchQuery}
+              placeholder={searchPlaceholder}
+              placeholderTextColor={palette.textSecondary}
+              returnKeyType="search"
+              selectionColor={palette.accent}
+              style={styles.searchInput}
+              value={searchQuery}
+            />
+          </View>
+        ) : null}
         <View style={styles.countRow}>
           <Text style={styles.countText}>
-            {deferredFilters.length} / {filtersForCategory.length} filters
+            {deferredFilters.length} / {totalFiltersCount} filters
           </Text>
           {statusLabel ? <Text style={styles.statusText}>{statusLabel}</Text> : null}
         </View>
         <Animated.View style={[styles.gridContainer, gridMotionStyle]}>
-          <FilterGrid
-            favorites={favorites}
-            filters={deferredFilters}
-            selectedFilterIds={activeFilterIds}
-            onSelect={handleFilterSelect}
-            onToggleFavorite={toggleFavorite}
-          />
+          {isSearchMode && deferredSearchQuery.length > 0 && deferredFilters.length === 0 ? (
+            <View style={styles.searchEmptyState}>
+              <Text style={styles.searchEmptyText}>
+                {t('editor.searchEmpty', {
+                  query: searchQuery.trim(),
+                })}
+              </Text>
+            </View>
+          ) : (
+            <FilterGrid
+              favorites={favorites}
+              filters={deferredFilters}
+              selectedFilterIds={activeFilterIds}
+              onSelect={handleFilterSelect}
+              onToggleFavorite={toggleFavorite}
+            />
+          )}
         </Animated.View>
       </View>
     </ScreenView>
@@ -864,8 +930,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  searchInputShell: {
+    marginTop: 8,
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.panel,
+  },
+  searchInput: {
+    minHeight: 42,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: palette.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   gridContainer: {
     height: 174,
     marginTop: 2,
+  },
+  searchEmptyState: {
+    flex: 1,
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.panel,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  searchEmptyText: {
+    color: palette.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

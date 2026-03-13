@@ -24,6 +24,20 @@ const IOS_SPRING = {
   velocity: 2.4,
 };
 
+const SEARCH_CATEGORY = {
+  id: 'search' as const,
+  titleKey: 'categories.search.title',
+  subtitleKey: 'categories.search.subtitle',
+  color: palette.accent,
+};
+
+const FAVORITES_CATEGORY = {
+  id: 'favorites' as const,
+  titleKey: 'categories.favorites.title',
+  subtitleKey: 'categories.favorites.subtitle',
+  color: palette.warning,
+};
+
 interface CategoryPillProps {
   color: string;
   label: string;
@@ -110,20 +124,17 @@ export function FilterCategoryBar({
   const categories = useMemo(
     () =>
       favoritesCount > 0
-        ? [
-            {
-              id: 'favorites' as const,
-              titleKey: 'categories.favorites.title',
-              subtitleKey: 'categories.favorites.subtitle',
-              color: palette.warning,
-            },
-            ...FILTER_CATEGORIES,
-          ]
-        : FILTER_CATEGORIES,
+        ? [SEARCH_CATEGORY, FAVORITES_CATEGORY, ...FILTER_CATEGORIES]
+        : [SEARCH_CATEGORY, ...FILTER_CATEGORIES],
     [favoritesCount],
   );
 
   const resolveCategoryTitle = (category: (typeof categories)[number]) => {
+    if (category.id === 'search') {
+      return t(category.titleKey, {
+        defaultValue: i18n.language.startsWith('ru') ? 'Поиск' : 'Search',
+      });
+    }
     if (category.id === 'favorites') {
       return t(category.titleKey, {
         defaultValue: i18n.language.startsWith('ru') ? 'Избранное' : 'Favorites',

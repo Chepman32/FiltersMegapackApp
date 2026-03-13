@@ -26,6 +26,7 @@ export const translations = {
       cta: 'Start Editing',
     },
     categories: {
+      search: { title: 'Search', subtitle: 'Find filters across all categories' },
       favorites: { title: 'Favorites', subtitle: 'Saved looks you starred' },
       cinematic: { title: 'Cinematic', subtitle: 'Filmic stories and depth' },
       vintage: { title: 'Vintage', subtitle: 'Aged tones and nostalgia' },
@@ -68,6 +69,8 @@ export const translations = {
       mixActiveTitle: 'Mix of {{count}} filters',
       singleMode: 'Single filter mode',
       exportReady: 'Export ready',
+      searchPlaceholder: 'Search filters across all categories',
+      searchEmpty: 'No filters match "{{query}}"',
     },
     home: {
       eyebrow: 'Local Studio',
@@ -188,6 +191,7 @@ export const translations = {
       cta: 'Начать редактирование',
     },
     categories: {
+      search: { title: 'Поиск', subtitle: 'Ищите фильтры по всем категориям' },
       favorites: { title: 'Избранное', subtitle: 'Фильтры, отмеченные звездой' },
       cinematic: { title: 'Кино', subtitle: 'Кинематографичная глубина' },
       vintage: { title: 'Винтаж', subtitle: 'Ностальгичные тона' },
@@ -230,6 +234,8 @@ export const translations = {
       mixActiveTitle: 'Микс из {{count}} фильтров',
       singleMode: 'Режим одного фильтра',
       exportReady: 'Готово к экспорту',
+      searchPlaceholder: 'Ищите фильтры по всем категориям',
+      searchEmpty: 'Нет фильтров по запросу "{{query}}"',
     },
     home: {
       eyebrow: 'Локальная студия',

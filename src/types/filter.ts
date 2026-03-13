@@ -1,4 +1,5 @@
 export type FilterCategoryId =
+  | 'search'
   | 'favorites'
   | 'cinematic'
   | 'vintage'
@@ -13,7 +14,7 @@ export type FilterCategoryId =
   | 'texture'
   | 'motion';
 
-export type StaticFilterCategoryId = Exclude<FilterCategoryId, 'favorites'>;
+export type StaticFilterCategoryId = Exclude<FilterCategoryId, 'favorites' | 'search'>;
 
 export type FilterOperationType =
   | 'exposure'

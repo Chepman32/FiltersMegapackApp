@@ -78,4 +78,18 @@ describe('studio store editor behavior', () => {
     ]);
     expect(useStudioStore.getState().selectedCategoryId).toBe('film');
   });
+
+  it('keeps the search category active while applying and undoing search results', () => {
+    const store = useStudioStore.getState();
+
+    store.setCategory('search');
+    store.setFilter('film-1');
+
+    expect(useStudioStore.getState().selectedCategoryId).toBe('search');
+
+    store.undoFilterChange();
+
+    expect(useStudioStore.getState().selectedCategoryId).toBe('search');
+    expect(useStudioStore.getState().filterStack.filterId).toBe('__none__');
+  });
 });
