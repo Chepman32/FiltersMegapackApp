@@ -56,7 +56,6 @@ export function IOSContextMenu({
   ...viewProps
 }: IOSContextMenuProps) {
   const skipNextTapRef = useRef(false);
-  const menuOpenRef = useRef(false);
 
   if (Platform.OS !== 'ios' || actions.length === 0) {
     if (onPress) {
@@ -82,42 +81,31 @@ export function IOSContextMenu({
   return (
     <MenuViewCompat
       actions={mapActions(actions)}
-      onCloseMenu={() => {
-        menuOpenRef.current = false;
-      }}
       onOpenMenu={() => {
-        menuOpenRef.current = true;
         skipNextTapRef.current = true;
       }}
       onPressAction={event => onPressAction(event.nativeEvent.event)}
-      onTouchCancel={() => {
-        if (!menuOpenRef.current) {
-          skipNextTapRef.current = false;
-        }
-      }}
-      onTouchEnd={() => {
-        if (!onPress) {
-          return;
-        }
-        if (skipNextTapRef.current) {
-          if (!menuOpenRef.current) {
-            skipNextTapRef.current = false;
-          }
-          return;
-        }
-        onPress();
-      }}
-      onTouchStart={() => {
-        if (!menuOpenRef.current) {
-          skipNextTapRef.current = false;
-        }
-      }}
       shouldOpenOnLongPress
       style={style}
       testID={testID}
       themeVariant="light"
     >
-      {children}
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            if (skipNextTapRef.current) {
+              skipNextTapRef.current = false;
+              return;
+            }
+            onPress();
+          }}
+        >
+          {children}
+        </Pressable>
+      ) : (
+        children
+      )}
     </MenuViewCompat>
   );
 }
