@@ -577,6 +577,51 @@ export const FILTER_CATEGORIES: FilterCategory[] = CATEGORY_TEMPLATES.map(
   }),
 );
 
+const FILTER_CATEGORY_BY_ID = FILTER_CATEGORIES.reduce(
+  (acc, category) => {
+    acc[category.id as StaticFilterCategoryId] = category;
+    return acc;
+  },
+  {} as Record<StaticFilterCategoryId, FilterCategory>,
+);
+
+export const DEFAULT_FILTER_CATEGORY_ORDER = FILTER_CATEGORIES.map(
+  category => category.id as StaticFilterCategoryId,
+);
+
+export function normalizeFilterCategoryOrder(
+  categoryOrder: StaticFilterCategoryId[],
+): StaticFilterCategoryId[] {
+  const unique = new Set<StaticFilterCategoryId>();
+  const normalized: StaticFilterCategoryId[] = [];
+
+  categoryOrder.forEach(categoryId => {
+    if (!FILTER_CATEGORY_BY_ID[categoryId] || unique.has(categoryId)) {
+      return;
+    }
+    unique.add(categoryId);
+    normalized.push(categoryId);
+  });
+
+  DEFAULT_FILTER_CATEGORY_ORDER.forEach(categoryId => {
+    if (unique.has(categoryId)) {
+      return;
+    }
+    unique.add(categoryId);
+    normalized.push(categoryId);
+  });
+
+  return normalized;
+}
+
+export function orderFilterCategories(
+  categoryOrder: StaticFilterCategoryId[],
+): FilterCategory[] {
+  return normalizeFilterCategoryOrder(categoryOrder).map(
+    categoryId => FILTER_CATEGORY_BY_ID[categoryId],
+  );
+}
+
 export const FILTERS: FilterDefinition[] = CATEGORY_TEMPLATES.flatMap(category => {
   const specialFilters = SPECIAL_FILTERS_BY_CATEGORY[category.id] ?? [];
 

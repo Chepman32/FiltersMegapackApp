@@ -4,6 +4,7 @@ import type {
   FilterCategoryId,
   FilterMixDocument,
   FilterStack,
+  StaticFilterCategoryId,
 } from '../types/filter';
 import type { MediaAssetRef } from '../types/media';
 import type { ProjectDocument } from '../types/project';
@@ -14,7 +15,11 @@ import {
   getActiveFilterIds,
   normalizeFilterStack,
 } from '../filters/recipe';
-import { getFilterById } from '../filters/filterCatalog';
+import {
+  DEFAULT_FILTER_CATEGORY_ORDER,
+  getFilterById,
+  normalizeFilterCategoryOrder,
+} from '../filters/filterCatalog';
 import { readJSON, writeJSON } from './storage';
 import {
   createFolder as insertFolder,
@@ -35,6 +40,7 @@ const ONBOARDING_KEY = 'onboardingSeen';
 const LANGUAGE_KEY = 'language';
 const MIXES_KEY = 'mixes';
 const PERFORMANCE_KEY = 'performanceMode';
+const CATEGORY_ORDER_KEY = 'categoryOrder';
 const AUTOSAVE_DEBOUNCE_MS = 420;
 const UNTITLED_PROJECT_TITLE = 'Untitled Project';
 
@@ -69,6 +75,7 @@ interface StudioState {
   favorites: string[];
   recents: string[];
   mixes: FilterMixDocument[];
+  categoryOrder: StaticFilterCategoryId[];
   onboardingSeen: boolean;
   language: 'en' | 'ru';
   performanceMode: boolean;
@@ -92,6 +99,8 @@ interface StudioState {
   setOnboardingSeen: (value: boolean) => void;
   setLanguage: (value: 'en' | 'ru') => void;
   setPerformanceMode: (value: boolean) => void;
+  setCategoryOrder: (value: StaticFilterCategoryId[]) => void;
+  resetCategoryOrder: () => void;
   refreshProjects: () => void;
   createOrUpdateProject: (title?: string) => ProjectDocument | null;
   openProject: (projectId: string) => ProjectDocument | null;
@@ -121,6 +130,12 @@ const initialRecents = readJSON<string[]>(RECENTS_KEY, []);
 const initialLanguage = readJSON<'en' | 'ru'>(LANGUAGE_KEY, 'en');
 const initialMixes = loadMixes();
 const initialPerformance = readJSON<boolean>(PERFORMANCE_KEY, true);
+const initialCategoryOrder = normalizeFilterCategoryOrder(
+  readJSON<StaticFilterCategoryId[]>(
+    CATEGORY_ORDER_KEY,
+    DEFAULT_FILTER_CATEGORY_ORDER,
+  ),
+);
 const EMPTY_HOME_PROJECTS: HomeProjectsState = {
   allProjects: [],
   foldersWithProjects: [],
@@ -412,6 +427,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   favorites: initialFavorites,
   recents: initialRecents,
   mixes: initialMixes,
+  categoryOrder: [...initialCategoryOrder],
   onboardingSeen: readJSON<boolean>(ONBOARDING_KEY, false),
   language: initialLanguage,
   performanceMode: initialPerformance,
@@ -724,6 +740,17 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setPerformanceMode(value) {
     writeJSON(PERFORMANCE_KEY, value);
     set({ performanceMode: value });
+  },
+
+  setCategoryOrder(value) {
+    const normalized = normalizeFilterCategoryOrder(value);
+    writeJSON(CATEGORY_ORDER_KEY, normalized);
+    set({ categoryOrder: normalized });
+  },
+
+  resetCategoryOrder() {
+    writeJSON(CATEGORY_ORDER_KEY, DEFAULT_FILTER_CATEGORY_ORDER);
+    set({ categoryOrder: [...DEFAULT_FILTER_CATEGORY_ORDER] });
   },
 
   refreshProjects() {

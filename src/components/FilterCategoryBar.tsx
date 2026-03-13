@@ -7,12 +7,12 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { FILTER_CATEGORIES } from '../filters/filterCatalog';
-import type { FilterCategoryId } from '../types/filter';
+import type { FilterCategory, FilterCategoryId } from '../types/filter';
 import { palette } from '../theme/colors';
 
 interface FilterCategoryBarProps {
   favoritesCount: number;
+  orderedCategories: FilterCategory[];
   selectedId: FilterCategoryId;
   onSelect: (id: FilterCategoryId) => void;
 }
@@ -108,6 +108,7 @@ function CategoryPill({
 
 export function FilterCategoryBar({
   favoritesCount,
+  orderedCategories,
   selectedId,
   onSelect,
 }: FilterCategoryBarProps) {
@@ -124,9 +125,9 @@ export function FilterCategoryBar({
   const categories = useMemo(
     () =>
       favoritesCount > 0
-        ? [SEARCH_CATEGORY, FAVORITES_CATEGORY, ...FILTER_CATEGORIES]
-        : [SEARCH_CATEGORY, ...FILTER_CATEGORIES],
-    [favoritesCount],
+        ? [SEARCH_CATEGORY, FAVORITES_CATEGORY, ...orderedCategories]
+        : [SEARCH_CATEGORY, ...orderedCategories],
+    [favoritesCount, orderedCategories],
   );
 
   const resolveCategoryTitle = (category: (typeof categories)[number]) => {

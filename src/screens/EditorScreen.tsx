@@ -31,6 +31,7 @@ import {
   FILTERS,
   FILTERS_BY_CATEGORY,
   FILTERS_BY_ID,
+  orderFilterCategories,
 } from '../filters/filterCatalog';
 import type { FilterStack } from '../types/filter';
 import {
@@ -165,6 +166,7 @@ export function EditorScreen() {
     selectedCategoryId,
     canRedo,
     canUndo,
+    categoryOrder,
     favorites,
     commitFilterHistory,
     redoFilterChange,
@@ -192,6 +194,10 @@ export function EditorScreen() {
   const categorySwitchProgress = useSharedValue(1);
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
   const isSearchMode = selectedCategoryId === 'search';
+  const orderedCategories = useMemo(
+    () => orderFilterCategories(categoryOrder),
+    [categoryOrder],
+  );
 
   useRenderPreview({
     asset: currentAsset,
@@ -564,6 +570,7 @@ export function EditorScreen() {
 
         <FilterCategoryBar
           favoritesCount={favorites.length}
+          orderedCategories={orderedCategories}
           selectedId={selectedCategoryId}
           onSelect={setCategory}
         />

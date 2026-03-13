@@ -162,6 +162,8 @@ export const translations = {
       clearRecents: 'Clear recent filters',
       resetOnboarding: 'Show onboarding again',
       appVersion: 'App Version',
+      categoriesOrder: 'Categories Order',
+      resetOrder: 'Reset order',
     },
   },
   ru: {
@@ -335,6 +337,8 @@ export const translations = {
       clearRecents: 'Очистить недавние фильтры',
       resetOnboarding: 'Показать онбординг снова',
       appVersion: 'Версия приложения',
+      categoriesOrder: 'Порядок категорий',
+      resetOrder: 'Сбросить порядок',
     },
   },
 } as const;
