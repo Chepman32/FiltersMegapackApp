@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
@@ -29,6 +29,7 @@ interface CategoryPillProps {
   label: string;
   onPress: () => void;
   selected: boolean;
+  onLayout?: (x: number) => void;
 }
 
 function CategoryPill({
@@ -36,6 +37,7 @@ function CategoryPill({
   label,
   onPress,
   selected,
+  onLayout,
 }: CategoryPillProps) {
   const progress = useSharedValue(selected ? 1 : 0);
 
@@ -76,7 +78,12 @@ function CategoryPill({
   }));
 
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      onLayout={e => onLayout?.(e.nativeEvent.layout.x)}
+    >
       <Animated.View style={[styles.pill, pillStyle]}>
         <Animated.View style={[styles.dot, { backgroundColor: color }, dotStyle]} />
         <Animated.Text style={[styles.label, labelStyle]}>{label}</Animated.Text>
@@ -91,6 +98,15 @@ export function FilterCategoryBar({
   onSelect,
 }: FilterCategoryBarProps) {
   const { i18n, t } = useTranslation();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const pillXPositions = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    const x = pillXPositions.current.get(selectedId);
+    if (x != null) {
+      scrollViewRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: true });
+    }
+  }, [selectedId]);
   const categories = useMemo(
     () =>
       favoritesCount > 0
@@ -118,6 +134,7 @@ export function FilterCategoryBar({
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       horizontal
       style={styles.scroll}
       contentContainerStyle={styles.container}
@@ -133,6 +150,7 @@ export function FilterCategoryBar({
             onPress={() => onSelect(category.id)}
             label={label}
             selected={selected}
+            onLayout={x => pillXPositions.current.set(category.id, x)}
           />
         );
       })}

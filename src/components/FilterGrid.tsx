@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,10 @@ interface FilterGridProps {
   onSelect: (filterId: string) => void;
   onToggleFavorite: (filterId: string) => void;
 }
+
+const PAGE_HORIZONTAL_PADDING = 16;
+const CARD_GAP = 8;
+const FILTERS_PER_PAGE = 4;
 
 const IOS_CARD_SPRING = {
   damping: 20,
@@ -142,70 +146,88 @@ export function FilterGrid({
   onSelect,
   onToggleFavorite,
 }: FilterGridProps) {
-  const { width } = useWindowDimensions();
-  const pageWidth = width - 32;
-  const cardWidth = (pageWidth - 8) / 2;
+  const { width: windowWidth } = useWindowDimensions();
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const pageWidth = viewportWidth || windowWidth;
+  const cardWidth = Math.max(
+    0,
+    (pageWidth - PAGE_HORIZONTAL_PADDING * 2 - CARD_GAP) / 2,
+  );
   const pages = useMemo(() => {
     const next: FilterDefinition[][] = [];
-    for (let index = 0; index < filters.length; index += 4) {
-      next.push(filters.slice(index, index + 4));
+    for (let index = 0; index < filters.length; index += FILTERS_PER_PAGE) {
+      next.push(filters.slice(index, index + FILTERS_PER_PAGE));
     }
     return next;
   }, [filters]);
 
   return (
-    <FlashList
-      data={pages}
-      horizontal
-      decelerationRate="fast"
-      disableIntervalMomentum
-      extraData={{ favorites, selectedFilterIds }}
-      keyExtractor={(item, index) => item[0]?.id ?? `page-${index}`}
-      pagingEnabled
-      showsHorizontalScrollIndicator={false}
-      renderItem={({ item }) => {
-        const rows = [item.slice(0, 2), item.slice(2, 4)];
-
-        return (
-          <View style={[styles.page, { width: pageWidth }]}>
-            {rows.map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.row}>
-                {row.map(filter => {
-                  const mixOrder = selectedFilterIds.indexOf(filter.id);
-                  const selected = mixOrder !== -1;
-                  const favorite = favorites.includes(filter.id);
-
-                  return (
-                    <FilterCard
-                      cardWidth={cardWidth}
-                      favorite={favorite}
-                      key={filter.id}
-                      filter={filter}
-                      mixOrder={selected ? mixOrder + 1 : undefined}
-                      onSelect={onSelect}
-                      onToggleFavorite={onToggleFavorite}
-                      selected={selected}
-                    />
-                  );
-                })}
-                {row.length === 1 ? <View style={{ width: cardWidth }} /> : null}
-              </View>
-            ))}
-          </View>
+    <View
+      onLayout={event => {
+        const nextWidth = Math.round(event.nativeEvent.layout.width);
+        setViewportWidth(currentWidth =>
+          currentWidth === nextWidth ? currentWidth : nextWidth,
         );
       }}
-      contentContainerStyle={styles.content}
-    />
+      style={styles.viewport}
+    >
+      <FlashList
+        data={pages}
+        horizontal
+        decelerationRate="fast"
+        disableIntervalMomentum
+        estimatedItemSize={pageWidth}
+        extraData={{ favorites, selectedFilterIds, pageWidth }}
+        keyExtractor={(item, index) => item[0]?.id ?? `page-${index}`}
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        renderItem={({ item }) => {
+          const rows = [item.slice(0, 2), item.slice(2, 4)];
+
+          return (
+            <View style={[styles.page, { width: pageWidth }]}>
+              {rows.map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.row}>
+                  {row.map(filter => {
+                    const mixOrder = selectedFilterIds.indexOf(filter.id);
+                    const selected = mixOrder !== -1;
+                    const favorite = favorites.includes(filter.id);
+
+                    return (
+                      <FilterCard
+                        cardWidth={cardWidth}
+                        favorite={favorite}
+                        key={filter.id}
+                        filter={filter}
+                        mixOrder={selected ? mixOrder + 1 : undefined}
+                        onSelect={onSelect}
+                        onToggleFavorite={onToggleFavorite}
+                        selected={selected}
+                      />
+                    );
+                  })}
+                  {row.length === 1 ? <View style={{ width: cardWidth }} /> : null}
+                </View>
+              ))}
+            </View>
+          );
+        }}
+        contentContainerStyle={styles.content}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  viewport: {
+    flex: 1,
+  },
   content: {
-    paddingHorizontal: 16,
     paddingVertical: 4,
   },
   page: {
     justifyContent: 'space-between',
+    paddingHorizontal: PAGE_HORIZONTAL_PADDING,
   },
   row: {
     flexDirection: 'row',
