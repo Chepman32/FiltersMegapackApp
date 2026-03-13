@@ -128,9 +128,7 @@ export function EditorScreen() {
     [activeFilterIds, filterStack.intensity, filterStack.mixEnabled, filterStack.parameterValues],
   );
   const isMixMode = Boolean(filterStack.mixEnabled);
-  const previewHeight = isMixMode
-    ? Math.min(304, Math.max(248, height * 0.31))
-    : Math.min(332, Math.max(266, height * 0.35));
+  const previewHeight = Math.min(320, Math.max(254, height * 0.34));
   const undoLabel = t('common.undo', {
     defaultValue: i18n.language.startsWith('ru') ? 'Отменить' : 'Undo',
   });
