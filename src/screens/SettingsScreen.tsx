@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
+  interpolateColor,
+  LinearTransition,
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
@@ -18,9 +21,23 @@ import { FILTER_CATEGORIES } from '../filters/filterCatalog';
 
 const APP_VERSION = '1.0.0';
 const ROW_HEIGHT = 52;
-const SETTLE_SPRING = { damping: 22, stiffness: 280, mass: 0.88 };
+const ROW_GAP = 4;
+const ROW_STRIDE = ROW_HEIGHT + ROW_GAP;
+const REORDER_LAYOUT = LinearTransition.springify()
+  .damping(20)
+  .stiffness(250)
+  .mass(0.9);
+const RETURN_SPRING = { damping: 18, stiffness: 260, mass: 0.9 };
+const DROP_SPRING = { damping: 19, stiffness: 230, mass: 0.92 };
+const NEIGHBOR_SPRING = { damping: 18, stiffness: 260, mass: 0.9 };
+const LIFT_SPRING = { damping: 17, stiffness: 250, mass: 0.84 };
 
 type CategoryMeta = { color: string; titleKey: string };
+
+function clampIndex(value: number, totalCount: number) {
+  'worklet';
+  return Math.min(Math.max(0, value), totalCount - 1);
+}
 
 interface DraggableRowProps {
   color: string;
@@ -28,7 +45,10 @@ interface DraggableRowProps {
   index: number;
   totalCount: number;
   activeIndex: SharedValue<number>;
+  hoverIndex: SharedValue<number>;
   dragY: SharedValue<number>;
+  dragVelocityY: SharedValue<number>;
+  isSettling: SharedValue<number>;
   onDragEnd: (from: number, to: number) => void;
 }
 
@@ -38,81 +58,151 @@ function DraggableCategoryRow({
   index,
   totalCount,
   activeIndex,
+  hoverIndex,
   dragY,
+  dragVelocityY,
+  isSettling,
   onDragEnd,
 }: DraggableRowProps) {
+  const liftProgress = useDerivedValue(() =>
+    withSpring(activeIndex.value === index ? 1 : 0, LIFT_SPRING),
+  );
+
   const panGesture = Gesture.Pan()
     .activateAfterLongPress(250)
     .onStart(() => {
+      isSettling.value = 0;
       activeIndex.value = index;
+      hoverIndex.value = index;
+      dragVelocityY.value = 0;
+      dragY.value = 0;
     })
     .onUpdate(e => {
       dragY.value = e.translationY;
-    })
-    .onEnd(() => {
-      const to = Math.min(
-        Math.max(0, Math.round(index + dragY.value / ROW_HEIGHT)),
-        totalCount - 1,
+      dragVelocityY.value = e.velocityY;
+      hoverIndex.value = clampIndex(
+        Math.round(index + e.translationY / ROW_STRIDE),
+        totalCount,
       );
-      const from = index;
-      activeIndex.value = -1;
-      dragY.value = 0;
-      if (from !== to) {
-        runOnJS(onDragEnd)(from, to);
-      }
+    })
+    .onEnd(e => {
+      const to = clampIndex(Math.round(index + dragY.value / ROW_STRIDE), totalCount);
+
+      isSettling.value = 1;
+      hoverIndex.value = to;
+      dragVelocityY.value = e.velocityY;
+      dragY.value = withSpring(
+        (to - index) * ROW_STRIDE,
+        {
+          ...DROP_SPRING,
+          velocity: e.velocityY,
+        },
+        finished => {
+          if (!finished) {
+            return;
+          }
+
+          dragVelocityY.value = 0;
+          dragY.value = 0;
+          activeIndex.value = -1;
+          hoverIndex.value = -1;
+          isSettling.value = 0;
+
+          if (to !== index) {
+            runOnJS(onDragEnd)(index, to);
+          }
+        },
+      );
     })
     .onFinalize(() => {
-      activeIndex.value = -1;
-      dragY.value = 0;
+      if (isSettling.value || activeIndex.value !== index) {
+        return;
+      }
+
+      isSettling.value = 1;
+      hoverIndex.value = index;
+      dragVelocityY.value = 0;
+      dragY.value = withSpring(0, RETURN_SPRING, finished => {
+        if (!finished) {
+          return;
+        }
+
+        dragY.value = 0;
+        hoverIndex.value = -1;
+        activeIndex.value = -1;
+        isSettling.value = 0;
+      });
     });
 
   const animStyle = useAnimatedStyle(() => {
     const active = activeIndex.value;
+    const hovered = hoverIndex.value;
     const isActive = active === index;
+    const lift = liftProgress.value;
+
+    const baseStyle = {
+      backgroundColor: interpolateColor(
+        lift,
+        [0, 1],
+        [palette.panel, palette.panelElevated],
+      ),
+      borderColor: interpolateColor(lift, [0, 1], [palette.border, color]),
+      shadowColor: color,
+    };
 
     if (isActive) {
+      const velocityTilt = Math.max(-1, Math.min(1, dragVelocityY.value / 1800));
       return {
-        transform: [{ translateY: dragY.value }, { scale: 1.03 }],
+        ...baseStyle,
+        transform: [
+          { translateY: dragY.value },
+          { scale: 1 + lift * 0.042 },
+          { rotateZ: `${velocityTilt * 2.6}deg` },
+        ],
         zIndex: 100,
-        shadowOpacity: 0.22,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 10 },
-        shadowColor: '#000',
+        shadowOpacity: 0.16 + lift * 0.14,
+        shadowRadius: 14 + lift * 10,
+        shadowOffset: { width: 0, height: 10 + lift * 6 },
+        shadowColor: color,
         opacity: 0.96,
       };
     }
 
     if (active < 0) {
       return {
-        transform: [{ translateY: withSpring(0, SETTLE_SPRING) }, { scale: 1 }],
+        ...baseStyle,
+        transform: [
+          { translateY: withSpring(0, NEIGHBOR_SPRING) },
+          { scale: withSpring(1, LIFT_SPRING) },
+        ],
         zIndex: 0,
         shadowOpacity: 0,
         opacity: 1,
       };
     }
 
-    const hoverIdx = Math.min(
-      Math.max(0, Math.round(active + dragY.value / ROW_HEIGHT)),
-      totalCount - 1,
-    );
     let shift = 0;
-    if (active < hoverIdx && index > active && index <= hoverIdx) {
-      shift = -ROW_HEIGHT;
-    } else if (active > hoverIdx && index >= hoverIdx && index < active) {
-      shift = ROW_HEIGHT;
+    if (active < hovered && index > active && index <= hovered) {
+      shift = -ROW_STRIDE;
+    } else if (active > hovered && index >= hovered && index < active) {
+      shift = ROW_STRIDE;
     }
 
     return {
-      transform: [{ translateY: shift }, { scale: 1 }],
+      ...baseStyle,
+      transform: [
+        { translateY: withSpring(shift, NEIGHBOR_SPRING) },
+        { scale: withSpring(0.985, LIFT_SPRING) },
+      ],
       zIndex: 0,
       shadowOpacity: 0,
-      opacity: 1,
+      opacity: withSpring(0.9, RETURN_SPRING),
     };
   });
 
   return (
     <GestureDetector gesture={panGesture}>
-      <Animated.View style={[styles.categoryRow, animStyle]}>
+      <Animated.View layout={REORDER_LAYOUT} style={[styles.categoryRow, animStyle]}>
         <View style={[styles.categoryDot, { backgroundColor: color }]} />
         <Text style={styles.categoryName}>{label}</Text>
         <View style={styles.dragHandle}>
@@ -144,7 +234,10 @@ export function SettingsScreen() {
   );
 
   const activeIndex = useSharedValue(-1);
+  const hoverIndex = useSharedValue(-1);
   const dragY = useSharedValue(0);
+  const dragVelocityY = useSharedValue(0);
+  const isSettling = useSharedValue(0);
 
   const [capabilities, setCapabilities] = useState<FilterEngineCapabilities | null>(null);
 
@@ -214,7 +307,10 @@ export function SettingsScreen() {
               index={index}
               totalCount={categoryOrder.length}
               activeIndex={activeIndex}
+              hoverIndex={hoverIndex}
               dragY={dragY}
+              dragVelocityY={dragVelocityY}
+              isSettling={isSettling}
               onDragEnd={onDragEnd}
             />
           );
@@ -307,7 +403,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   categoryList: {
-    gap: 4,
+    gap: ROW_GAP,
   },
   categoryRow: {
     height: ROW_HEIGHT,
